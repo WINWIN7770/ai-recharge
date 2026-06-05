@@ -47,6 +47,7 @@ router.post('/products', async (req, res) => {
   const product = {
     id: nextId(products),
     name: b.name,
+    brand: b.brand || 'gpt',
     category: b.category || 'other',
     description: b.description || '',
     price: Number(b.price) || 0,
@@ -56,6 +57,10 @@ router.post('/products', async (req, res) => {
     active: b.active !== false,
     sales: 0,
     image: b.image || '',
+    badge: b.badge || '',
+    deliveryType: b.deliveryType || 'manual',
+    needAccount: b.needAccount !== undefined ? !!b.needAccount : true,
+    features: Array.isArray(b.features) ? b.features : [],
   };
   products.push(product);
   await writeCollection('products', products);
@@ -68,12 +73,14 @@ router.put('/products/:id', async (req, res) => {
   const p = products.find((x) => x.id === id);
   if (!p) return res.status(404).json({ error: '商品不存在' });
   const b = req.body || {};
-  const fields = ['name', 'category', 'description', 'image'];
+  const fields = ['name', 'brand', 'category', 'description', 'image', 'badge', 'deliveryType'];
   for (const f of fields) if (b[f] !== undefined) p[f] = b[f];
   for (const f of ['price', 'originalPrice', 'durationDays', 'stock']) {
     if (b[f] !== undefined) p[f] = Number(b[f]) || 0;
   }
   if (b.active !== undefined) p.active = !!b.active;
+  if (b.needAccount !== undefined) p.needAccount = !!b.needAccount;
+  if (Array.isArray(b.features)) p.features = b.features;
   await writeCollection('products', products);
   res.json({ ok: true, product: p });
 });
@@ -84,6 +91,73 @@ router.delete('/products/:id', async (req, res) => {
   if (!products.some((x) => x.id === id)) return res.status(404).json({ error: '商品不存在' });
   products = products.filter((x) => x.id !== id);
   await writeCollection('products', products);
+  res.json({ ok: true });
+});
+
+/* ---------------- 卡密库存管理 ---------------- */
+// 同步某商品的库存为「可用卡密数」（仅对卡密类商品）
+async function syncCardStock(productId) {
+  const products = readCollection('products');
+  const p = products.find((x) => x.id === productId);
+  if (!p || p.deliveryType !== 'card') return;
+  const cards = readCollection('cards');
+  p.stock = cards.filter((c) => c.productId === productId && c.status === 'available').length;
+  await writeCollection('products', products);
+}
+
+// 各商品卡密库存汇总（可用/已售）
+router.get('/cards/summary', (req, res) => {
+  const cards = readCollection('cards');
+  const summary = {};
+  for (const c of cards) {
+    const s = (summary[c.productId] = summary[c.productId] || { available: 0, sold: 0 });
+    if (c.status === 'available') s.available += 1;
+    else s.sold += 1;
+  }
+  res.json({ summary });
+});
+
+// 某商品的卡密列表
+router.get('/cards', (req, res) => {
+  const productId = Number(req.query.productId);
+  let cards = readCollection('cards').slice().sort((a, b) => b.id - a.id);
+  if (productId) cards = cards.filter((c) => c.productId === productId);
+  res.json({ cards });
+});
+
+// 批量导入卡密（secrets 按行分隔，每行一个）
+router.post('/cards', async (req, res) => {
+  const b = req.body || {};
+  const productId = Number(b.productId);
+  const product = readCollection('products').find((p) => p.id === productId);
+  if (!product) return res.status(400).json({ error: '商品不存在' });
+  const lines = String(b.secrets || '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  if (!lines.length) return res.status(400).json({ error: '请输入至少一条卡密' });
+
+  const cards = readCollection('cards');
+  const now = new Date().toISOString();
+  let id = nextId(cards);
+  for (const secret of lines) {
+    cards.push({ id: id++, productId, secret, status: 'available', orderId: null, createdAt: now, soldAt: null });
+  }
+  await writeCollection('cards', cards);
+  await syncCardStock(productId);
+  res.json({ ok: true, added: lines.length });
+});
+
+// 删除一条未售出的卡密
+router.delete('/cards/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const cards = readCollection('cards');
+  const card = cards.find((c) => c.id === id);
+  if (!card) return res.status(404).json({ error: '卡密不存在' });
+  if (card.status === 'sold') return res.status(400).json({ error: '已售出的卡密不可删除' });
+  const pid = card.productId;
+  await writeCollection('cards', cards.filter((c) => c.id !== id));
+  await syncCardStock(pid);
   res.json({ ok: true });
 });
 

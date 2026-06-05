@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>卡密管理 - 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="adminLayout">
+    <div class="page-head">
+      <h2>卡密管理</h2>
+      <span class="muted">卡密类商品付款后自动发货；此处维护各商品的卡密库存。</span>
+    </div>
+
+    <div class="card mb">
+      <div class="form-group">
+        <label>选择商品（仅显示卡密发货类商品）</label>
+        <select class="form-control" id="prodSelect" onchange="onSelect()"></select>
+      </div>
+      <div id="summaryBox" class="row" style="gap:24px;margin-bottom:8px"></div>
+    </div>
+
+    <div class="card mb" id="addBox" style="display:none">
+      <h3 style="margin-bottom:12px">批量导入卡密</h3>
+      <div class="alert alert-error" id="addErr" style="display:none"></div>
+      <div class="form-group">
+        <label>卡密内容（每行一个，可整段粘贴）</label>
+        <textarea class="form-control" id="secrets" style="min-height:140px" placeholder="例如：&#10;CARD-AAAA-1111&#10;CARD-BBBB-2222&#10;兑换链接 https://...&#10;账号:密码"></textarea>
+        <div class="form-hint">每一行将作为一条独立卡密，按下单数量自动发放给买家。</div>
+      </div>
+      <button class="btn" id="addBtn" onclick="addCards()">导入卡密</button>
+    </div>
+
+    <div class="table-wrap" id="listBox" style="display:none">
+      <table>
+        <thead><tr><th>ID</th><th>卡密内容</th><th>状态</th><th>关联订单</th><th>导入时间</th><th>操作</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin-common.js"></script>
+  <script>
+    let cardProducts = [];
+    let currentPid = null;
+
+    async function init() {
+      const me = await initAdmin('cards');
+      if (!me) return;
+      try {
+        const { products } = await API.get('/api/admin/products');
+        cardProducts = products.filter(p => p.deliveryType === 'card');
+        const sel = document.getElementById('prodSelect');
+        if (!cardProducts.length) {
+          sel.innerHTML = '<option>（暂无卡密发货类商品，请在商品管理中将交付方式设为「卡密秒发」）</option>';
+          return;
+        }
+        sel.innerHTML = cardProducts.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+        currentPid = cardProducts[0].id;
+        await refresh();
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    function onSelect() {
+      currentPid = Number(document.getElementById('prodSelect').value);
+      refresh();
+    }
+
+    async function refresh() {
+      if (!currentPid) return;
+      document.getElementById('addBox').style.display = '';
+      document.getElementById('listBox').style.display = '';
+      const [{ summary }, { cards }] = await Promise.all([
+        API.get('/api/admin/cards/summary'),
+        API.get('/api/admin/cards?productId=' + currentPid),
+      ]);
+      const s = summary[currentPid] || { available: 0, sold: 0 };
+      document.getElementById('summaryBox').innerHTML = `
+        <div><div class="stat-card" style="padding:14px 20px"><div class="num">${s.available}</div><div class="label">可用库存</div></div></div>
+        <div><div class="stat-card" style="padding:14px 20px"><div class="num" style="color:var(--muted)">${s.sold}</div><div class="label">已售出</div></div></div>`;
+      const rows = document.getElementById('rows');
+      if (!cards.length) { rows.innerHTML = '<tr><td colspan="6" class="empty">暂无卡密，请在上方导入</td></tr>'; return; }
+      rows.innerHTML = cards.map(c => `
+        <tr>
+          <td>${c.id}</td>
+          <td style="font-family:monospace;max-width:360px;word-break:break-all">${escapeHtml(c.secret)}</td>
+          <td>${c.status === 'available' ? '<span class="badge badge-completed">可用</span>' : '<span class="badge badge-refunded">已售</span>'}</td>
+          <td>${c.orderId ? '#' + c.orderId : '-'}</td>
+          <td class="muted" style="font-size:12px">${fmtDate(c.createdAt)}</td>
+          <td>${c.status === 'available' ? `<button class="btn btn-sm btn-danger" onclick="delCard(${c.id})">删除</button>` : '-'}</td>
+        </tr>`).join('');
+    }
+
+    async function addCards() {
+      const err = document.getElementById('addErr');
+      const btn = document.getElementById('addBtn');
+      err.style.display = 'none';
+      const secrets = document.getElementById('secrets').value;
+      btn.disabled = true; btn.textContent = '导入中...';
+      try {
+        const { added } = await API.post('/api/admin/cards', { productId: currentPid, secrets });
+        document.getElementById('secrets').value = '';
+        toast(`成功导入 ${added} 条卡密`, 'ok');
+        await refresh();
+      } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+      btn.disabled = false; btn.textContent = '导入卡密';
+    }
+
+    async function delCard(id) {
+      if (!confirm('确认删除这条卡密？')) return;
+      try { await API.del('/api/admin/cards/' + id); toast('已删除', 'ok'); await refresh(); }
+      catch (e) { toast(e.message, 'err'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

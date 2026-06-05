@@ -27,14 +27,40 @@
         <div class="alert alert-error" id="editErr" style="display:none"></div>
         <input type="hidden" id="pid" />
         <div class="form-group"><label>商品名称 *</label><input class="form-control" id="f_name" /></div>
-        <div class="form-group"><label>分类</label>
-          <select class="form-control" id="f_category">
-            <option value="plus">Plus 会员</option>
-            <option value="api">API 额度</option>
-            <option value="team">Team 团队版</option>
-            <option value="gift">礼品卡</option>
-            <option value="other">其他</option>
-          </select>
+        <div class="row">
+          <div class="form-group" style="flex:1"><label>品牌</label>
+            <select class="form-control" id="f_brand">
+              <option value="gpt">ChatGPT</option>
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+              <option value="grok">Grok</option>
+              <option value="suno">Suno</option>
+              <option value="apple">Apple ID</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1"><label>分类</label>
+            <select class="form-control" id="f_category">
+              <option value="plus">Plus 会员</option>
+              <option value="pro">Pro 专业版</option>
+              <option value="max">Max 旗舰版</option>
+              <option value="team">Team 团队版</option>
+              <option value="advanced">Advanced</option>
+              <option value="api">API 额度</option>
+              <option value="gift">礼品卡</option>
+              <option value="id">Apple ID</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="form-group" style="flex:1"><label>交付方式</label>
+            <select class="form-control" id="f_deliveryType">
+              <option value="manual">人工代充</option>
+              <option value="link">专属升级链接</option>
+              <option value="card">卡密秒发（付款后自动发货）</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1"><label>角标（如 🔥热销，可空）</label><input class="form-control" id="f_badge" /></div>
         </div>
         <div class="form-group"><label>描述</label><textarea class="form-control" id="f_description"></textarea></div>
         <div class="row">
@@ -52,6 +78,8 @@
         </div>
         <div class="form-group">
           <label><input type="checkbox" id="f_active" checked /> 上架销售</label>
+          &nbsp;&nbsp;
+          <label><input type="checkbox" id="f_needAccount" /> 下单需填买家账号（人工代充类勾选；卡密类不勾）</label>
         </div>
       </div>
       <div class="modal-footer">
@@ -77,8 +105,9 @@
       products = list;
       document.getElementById('rows').innerHTML = list.length ? list.map(p => {
         const cat = CATEGORY_MAP[p.category] || { text: p.category };
+        const dlv = (typeof DELIVERY_MAP !== 'undefined' && DELIVERY_MAP[p.deliveryType]) || null;
         return `<tr>
-          <td>${p.id}</td><td>${escapeHtml(p.name)}</td><td>${cat.text}</td>
+          <td>${p.id}</td><td>${escapeHtml(p.name)}${dlv ? ` <span class="delivery-chip">${dlv.icon}${dlv.text}</span>` : ''}</td><td>${cat.text}</td>
           <td>${money(p.price)}</td><td>${money(p.originalPrice)}</td><td>${p.stock}</td><td>${p.sales || 0}</td>
           <td>${p.active ? '<span class="badge badge-completed">上架</span>' : '<span class="badge badge-cancelled">下架</span>'}</td>
           <td>
@@ -96,7 +125,11 @@
       document.getElementById('editTitle').textContent = p ? '编辑商品' : '新增商品';
       document.getElementById('pid').value = p ? p.id : '';
       document.getElementById('f_name').value = p ? p.name : '';
+      document.getElementById('f_brand').value = p ? (p.brand || 'gpt') : 'gpt';
       document.getElementById('f_category').value = p ? p.category : 'plus';
+      document.getElementById('f_deliveryType').value = p ? (p.deliveryType || 'manual') : 'manual';
+      document.getElementById('f_badge').value = p ? (p.badge || '') : '';
+      document.getElementById('f_needAccount').checked = p ? !!p.needAccount : true;
       document.getElementById('f_description').value = p ? p.description : '';
       document.getElementById('f_price').value = p ? p.price : '';
       document.getElementById('f_originalPrice').value = p ? p.originalPrice : '';
@@ -125,7 +158,11 @@
       const id = document.getElementById('pid').value;
       const body = {
         name: document.getElementById('f_name').value.trim(),
+        brand: document.getElementById('f_brand').value,
         category: document.getElementById('f_category').value,
+        deliveryType: document.getElementById('f_deliveryType').value,
+        badge: document.getElementById('f_badge').value.trim(),
+        needAccount: document.getElementById('f_needAccount').checked,
         description: document.getElementById('f_description').value.trim(),
         price: document.getElementById('f_price').value,
         originalPrice: document.getElementById('f_originalPrice').value || document.getElementById('f_price').value,

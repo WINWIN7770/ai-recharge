@@ -5,6 +5,38 @@ const { requireAuth } = require('../auth');
 
 const router = express.Router();
 
+/**
+ * 卡密自动发货：订单支付成功后调用。
+ * 若商品为 deliveryType==='card' 且卡密库存充足，则自动分配卡密、填入交付内容、
+ * 直接将订单标记为「已完成」，并同步库存/销量。库存不足则原样返回（转人工处理）。
+ * 注意：本函数会写入 cards / products 集合，但不写 orders（由调用方统一写）。
+ */
+async function autoDeliver(order) {
+  const products = readCollection('products');
+  const product = products.find((p) => p.id === order.productId);
+  if (!product || product.deliveryType !== 'card') return false;
+
+  const cards = readCollection('cards');
+  const avail = cards.filter((c) => c.productId === order.productId && c.status === 'available');
+  if (avail.length < order.quantity) return false; // 卡密不足，转人工发货
+
+  const now = new Date().toISOString();
+  const picked = avail.slice(0, order.quantity);
+  for (const c of picked) { c.status = 'sold'; c.orderId = order.id; c.soldAt = now; }
+  await writeCollection('cards', cards);
+
+  order.deliverContent = picked.map((c) => c.secret).join('\n');
+  order.status = 'completed';
+  order.completedAt = now;
+  order.autoDelivered = true;
+
+  // 同步库存（剩余可用卡密数）与销量
+  product.stock = cards.filter((c) => c.productId === order.productId && c.status === 'available').length;
+  product.sales = (product.sales || 0) + order.quantity;
+  await writeCollection('products', products);
+  return true;
+}
+
 // 创建订单
 router.post('/', requireAuth, async (req, res) => {
   const { productId, quantity, chatgptEmail, chatgptPassword, contact, remark } = req.body || {};
@@ -83,6 +115,7 @@ router.post('/:id/pay', requireAuth, memoryUpload.single('proof'), async (req, r
   // 收款码方式：标记为「已支付待处理」，等待管理员核实
   order.status = 'paid';
   order.paidAt = new Date().toISOString();
+  await autoDeliver(order); // 卡密商品有货则自动发货并完成
   await writeCollection('orders', orders);
   res.json({ ok: true, order });
 });
@@ -101,6 +134,7 @@ router.post('/:id/mock-pay', requireAuth, async (req, res) => {
   order.status = 'paid';
   order.paymentMethod = 'mock';
   order.paidAt = new Date().toISOString();
+  await autoDeliver(order); // 卡密商品有货则自动发货并完成
   await writeCollection('orders', orders);
   res.json({ ok: true, order });
 });

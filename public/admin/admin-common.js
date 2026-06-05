@@ -2,6 +2,7 @@
 const MENU = [
   { href: '/admin/', label: '数据看板', icon: '📊', key: 'dashboard' },
   { href: '/admin/products.html', label: '商品管理', icon: '📦', key: 'products' },
+  { href: '/admin/cards.html', label: '卡密管理', icon: '🔑', key: 'cards' },
   { href: '/admin/orders.html', label: '订单管理', icon: '🧾', key: 'orders' },
   { href: '/admin/users.html', label: '用户管理', icon: '👤', key: 'users' },
   { href: '/admin/settings.html', label: '站点设置', icon: '⚙️', key: 'settings' },

@@ -263,13 +263,14 @@
         : `<div class="product-thumb">${brand.icon}</div>`;
       const feats = (p.features || []).slice(0, 3).map(f => `<li>${escapeHtml(f)}</li>`).join('');
       const free = Number(p.price) === 0;
+      const link = `/product.html?id=${p.id}`;
       return `
         <div class="product-card">
           ${p.badge ? `<span class="product-badge">${escapeHtml(p.badge)}</span>` : ''}
-          ${thumb}
+          <a href="${link}" style="display:block">${thumb}</a>
           <div class="product-body">
             <span class="product-tag">${brand.icon} ${brand.text} · ${cat.text}</span>
-            <div class="product-name">${escapeHtml(p.name)}</div>
+            <a href="${link}" style="color:inherit"><div class="product-name">${escapeHtml(p.name)}</div></a>
             ${feats ? `<ul class="product-features">${feats}</ul>` : `<div class="product-desc">${escapeHtml(p.description)}</div>`}
             <div class="product-price">
               ${free ? `<span class="price-now">免费</span>`
