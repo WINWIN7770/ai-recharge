@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>用户管理 - 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="adminLayout">
+    <div class="page-head"><h2>用户管理</h2></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>用户名</th><th>邮箱</th><th>角色</th><th>注册时间</th><th>操作</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="6" class="empty">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin-common.js"></script>
+  <script>
+    async function init() {
+      const me = await initAdmin('users');
+      if (!me) return;
+      await load();
+    }
+    async function load() {
+      const { users } = await API.get('/api/admin/users');
+      document.getElementById('rows').innerHTML = users.map(u => `
+        <tr>
+          <td>${u.id}</td><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.email) || '-'}</td>
+          <td>${u.role === 'admin' ? '<span class="badge badge-processing">管理员</span>' : '<span class="badge badge-completed">普通用户</span>'}</td>
+          <td>${fmtDate(u.createdAt)}</td>
+          <td>
+            ${u.role === 'admin'
+              ? `<button class="btn btn-sm btn-ghost" onclick="setRole(${u.id},'user')">降为用户</button>`
+              : `<button class="btn btn-sm btn-outline" onclick="setRole(${u.id},'admin')">设为管理员</button>`}
+          </td>
+        </tr>`).join('');
+    }
+    async function setRole(id, role) {
+      if (!confirm(`确定将该用户角色设为 ${role === 'admin' ? '管理员' : '普通用户'}？`)) return;
+      try { await API.put('/api/admin/users/' + id, { role }); toast('已更新', 'ok'); load(); }
+      catch (e) { toast(e.message, 'err'); }
+    }
+    init();
+  </script>
+</body>
+</html>

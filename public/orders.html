@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>我的订单 - ChatGPT 代充平台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+  <main class="container">
+    <div class="page-head"><h2>我的订单</h2></div>
+    <div id="orderList"><div class="empty">加载中...</div></div>
+  </main>
+
+  <!-- 支付弹窗 -->
+  <div class="modal-mask" id="payModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>订单支付</h3>
+        <button class="close-x" onclick="closePay()">&times;</button>
+      </div>
+      <div class="modal-body" id="payBody"></div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    let settings = {};
+    let payingOrder = null;
+
+    async function init() {
+      const user = await renderNavbar();
+      if (!user) { location.href = '/login.html?next=/orders.html'; return; }
+      try { settings = (await API.get('/api/settings')).settings; } catch {}
+      await loadOrders();
+      const payId = new URLSearchParams(location.search).get('pay');
+      if (payId) openPay(Number(payId));
+    }
+
+    async function loadOrders() {
+      const box = document.getElementById('orderList');
+      try {
+        const { orders } = await API.get('/api/orders');
+        if (!orders.length) { box.innerHTML = '<div class="empty">还没有订单，<a href="/">去选购</a></div>'; return; }
+        box.innerHTML = orders.map(orderCard).join('');
+      } catch (e) {
+        box.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+      }
+    }
+
+    function orderCard(o) {
+      let actions = '';
+      if (o.status === 'pending') {
+        actions = `<button class="btn btn-sm" onclick="openPay(${o.id})">去支付</button>
+                   <button class="btn btn-sm btn-ghost" onclick="cancelOrder(${o.id})">取消</button>`;
+      }
+      const deliver = o.deliverContent
+        ? `<div class="alert alert-success mt">📦 交付内容：${escapeHtml(o.deliverContent)}</div>` : '';
+      const note = o.adminNote
+        ? `<div class="form-hint">客服备注：${escapeHtml(o.adminNote)}</div>` : '';
+      return `
+        <div class="card mb">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <div>
+              <strong>${escapeHtml(o.productName)}</strong> × ${o.quantity}
+              <div class="form-hint">订单号：${o.orderNo} ｜ ${fmtDate(o.createdAt)}</div>
+            </div>
+            <div style="text-align:right">
+              ${statusBadge(o.status)}
+              <div class="price-now" style="font-size:18px">${money(o.amount)}</div>
+            </div>
+          </div>
+          ${deliver}${note}
+          <div class="row mt" style="justify-content:flex-end">${actions}</div>
+        </div>`;
+    }
+
+    async function cancelOrder(id) {
+      if (!confirm('确定取消该订单？')) return;
+      try { await API.post(`/api/orders/${id}/cancel`); toast('已取消', 'ok'); loadOrders(); }
+      catch (e) { toast(e.message, 'err'); }
+    }
+
+    async function openPay(id) {
+      try {
+        const { order } = await API.get('/api/orders/' + id);
+        payingOrder = order;
+        if (order.status !== 'pending') { toast('该订单无需支付', ''); loadOrders(); return; }
+        renderPayBody();
+        document.getElementById('payModal').classList.add('show');
+      } catch (e) { toast(e.message, 'err'); }
+    }
+    function closePay() {
+      document.getElementById('payModal').classList.remove('show');
+      history.replaceState(null, '', '/orders.html');
+    }
+
+    function renderPayBody() {
+      const o = payingOrder;
+      const hasAlipay = !!settings.alipayQr;
+      const hasWechat = !!settings.wechatQr;
+      let qrHtml = '';
+      if (hasAlipay || hasWechat) {
+        qrHtml = `<div class="row" style="justify-content:center">
+          ${hasAlipay ? `<div class="qr-box"><div>支付宝扫码</div><img src="${settings.alipayQr}"></div>` : ''}
+          ${hasWechat ? `<div class="qr-box"><div>微信扫码</div><img src="${settings.wechatQr}"></div>` : ''}
+        </div>
+        <p class="form-hint text-center mt">请扫码支付 <strong>${money(o.amount)}</strong>，支付完成后上传截图或点击「我已支付」</p>`;
+      } else {
+        qrHtml = `<div class="alert alert-info">管理员尚未配置收款码，请联系客服支付，或使用下方测试支付。</div>`;
+      }
+
+      const mockBtn = settings.mockPayEnabled
+        ? `<button class="btn btn-outline btn-block mt" onclick="mockPay()">🧪 模拟支付成功（测试用）</button>` : '';
+
+      document.getElementById('payBody').innerHTML = `
+        <div class="card mb" style="box-shadow:none;border:1px solid var(--border)">
+          <strong>${escapeHtml(o.productName)}</strong> × ${o.quantity}
+          <div class="form-hint">订单号：${o.orderNo}</div>
+          <div class="price-now mt" style="font-size:24px">应付：${money(o.amount)}</div>
+        </div>
+        ${qrHtml}
+        <div class="form-group mt">
+          <label>上传支付凭证 <span class="muted">(选填，加快审核)</span></label>
+          <input type="file" class="form-control" id="proofFile" accept="image/*" />
+        </div>
+        <button class="btn btn-block" id="paidBtn" onclick="submitPaid()">我已完成支付</button>
+        ${mockBtn}
+        <p class="form-hint text-center mt">提交后客服将核实并尽快为您代充处理。</p>`;
+    }
+
+    async function submitPaid() {
+      const btn = document.getElementById('paidBtn');
+      btn.disabled = true; btn.textContent = '提交中...';
+      try {
+        const fd = new FormData();
+        fd.append('method', 'manual');
+        const f = document.getElementById('proofFile').files[0];
+        if (f) fd.append('proof', f);
+        await API.post(`/api/orders/${payingOrder.id}/pay`, fd, true);
+        toast('支付信息已提交，等待客服处理', 'ok');
+        closePay(); loadOrders();
+      } catch (e) {
+        toast(e.message, 'err');
+        btn.disabled = false; btn.textContent = '我已完成支付';
+      }
+    }
+
+    async function mockPay() {
+      try {
+        await API.post(`/api/orders/${payingOrder.id}/mock-pay`);
+        toast('模拟支付成功', 'ok');
+        closePay(); loadOrders();
+      } catch (e) { toast(e.message, 'err'); }
+    }
+
+    init();
+  </script>
+</body>
+</html>

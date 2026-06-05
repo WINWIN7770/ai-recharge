@@ -1,0 +1,28 @@
+# Fly.io 部署配置（免费额度可用，含持久数据卷）
+# 使用前：把 app 改成全局唯一的名字（小写字母+数字+短横）
+app = "your-app-name-change-me"
+primary_region = "hkg"   # 香港，离中国大陆最近；也可用 nrt(东京)/sin(新加坡)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  HOST = "0.0.0.0"
+  COOKIE_SECURE = "1"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0   # 免费省钱：无访问时休眠，有访问自动唤醒
+
+# 持久卷：保存订单/用户/设置/上传文件，重启不丢
+[mounts]
+  source = "recharge_data"
+  destination = "/app/data"
+
+# 注意：AUTH_SECRET 不要写在这里，用命令设置为密文：
+#   fly secrets set AUTH_SECRET=你的长随机串

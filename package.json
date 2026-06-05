@@ -1,0 +1,20 @@
+{
+  "name": "chatgpt-recharge-platform",
+  "version": "1.0.0",
+  "description": "ChatGPT 代充平台 - 用户端 + 管理端 + 收款支付",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "seed": "node src/seed.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "multer": "^2.0.0"
+  }
+}

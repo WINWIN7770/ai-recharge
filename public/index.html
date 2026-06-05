@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ChatGPT 代充_GPT Plus会员代充_API额度充值 - 安全快速官方渠道</title>
+  <meta name="description" content="专业 ChatGPT 代充平台，提供 ChatGPT Plus 会员、GPT API 额度、Team 团队版、礼品卡等代充服务，支持支付宝/微信付款，安全快速，官方渠道，到账秒级。" />
+  <meta name="keywords" content="ChatGPT代充,ChatGPT Plus代充,GPT会员充值,OpenAI API充值,GPT代充,AI代充,ChatGPT会员" />
+  <meta name="robots" content="index, follow" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <!-- 社交分享卡片 -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="ChatGPT 代充平台 - 安全快速官方渠道" />
+  <meta property="og:description" content="ChatGPT Plus 会员、GPT API 额度、礼品卡代充，支付宝/微信付款，到账快。" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+
+  <section class="hero">
+    <h1 id="heroTitle">ChatGPT 代充服务</h1>
+    <p id="heroSlogan">安全 · 快速 · 官方渠道</p>
+  </section>
+
+  <main class="container">
+    <div class="announcement" id="announcement" style="display:none"></div>
+
+    <div class="page-head">
+      <h2>全部商品</h2>
+      <div class="row" id="catFilter"></div>
+    </div>
+
+    <div class="grid" id="productGrid">
+      <div class="empty">加载中...</div>
+    </div>
+  </main>
+
+  <!-- 下单弹窗 -->
+  <div class="modal-mask" id="orderModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>确认下单</h3>
+        <button class="close-x" onclick="closeOrder()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="orderProductInfo" class="card mb" style="box-shadow:none;border:1px solid var(--border)"></div>
+        <div class="alert alert-error" id="orderErr" style="display:none"></div>
+        <div class="form-group">
+          <label>购买数量</label>
+          <input type="number" class="form-control" id="qty" value="1" min="1" max="99" />
+        </div>
+        <div class="form-group" id="acctGroup">
+          <label>ChatGPT 账号邮箱 <span class="muted">(代充至此账号)</span></label>
+          <input type="text" class="form-control" id="cgEmail" placeholder="您的 ChatGPT 登录邮箱" />
+        </div>
+        <div class="form-group" id="pwdGroup">
+          <label>账号密码 <span class="muted">(选填，部分代充需要)</span></label>
+          <input type="text" class="form-control" id="cgPwd" placeholder="如需代登录请填写，否则留空" />
+          <div class="form-hint">⚠️ 密码为敏感信息，仅用于代充操作。如担心安全可联系客服改用其他方式。</div>
+        </div>
+        <div class="form-group">
+          <label>联系方式 <span class="muted">(微信/QQ/邮箱，便于通知)</span></label>
+          <input type="text" class="form-control" id="contact" placeholder="便于客服与您联系" />
+        </div>
+        <div class="form-group">
+          <label>备注 <span class="muted">(选填)</span></label>
+          <textarea class="form-control" id="remark" placeholder="其他说明"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeOrder()">取消</button>
+        <button class="btn" id="submitOrderBtn" onclick="submitOrder()">提交订单并去支付</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    let allProducts = [];
+    let currentUser = null;
+    let selectedProduct = null;
+
+    async function init() {
+      currentUser = await renderNavbar('home');
+      try {
+        const { settings } = await API.get('/api/settings');
+        document.getElementById('heroTitle').textContent = settings.siteName || 'ChatGPT 代充服务';
+        document.getElementById('heroSlogan').textContent = settings.slogan || '安全 · 快速 · 官方渠道';
+        if (settings.announcement) {
+          const a = document.getElementById('announcement');
+          a.textContent = '📢 ' + settings.announcement;
+          a.style.display = 'block';
+        }
+      } catch {}
+      await loadProducts();
+    }
+
+    async function loadProducts(category) {
+      const grid = document.getElementById('productGrid');
+      try {
+        const url = category ? `/api/products?category=${category}` : '/api/products';
+        const { products } = await API.get(url);
+        allProducts = products;
+        renderFilter();
+        if (!products.length) { grid.innerHTML = '<div class="empty">暂无商品</div>'; return; }
+        grid.innerHTML = products.map(cardHtml).join('');
+      } catch (e) {
+        grid.innerHTML = `<div class="empty">加载失败：${e.message}</div>`;
+      }
+    }
+
+    function renderFilter() {
+      const cats = [...new Set(allProducts.map(p => p.category))];
+      const el = document.getElementById('catFilter');
+      el.innerHTML = `<button class="btn btn-sm btn-outline" onclick="loadProducts()">全部</button>` +
+        cats.map(c => {
+          const m = CATEGORY_MAP[c] || { text: c, icon: '📦' };
+          return `<button class="btn btn-sm btn-outline" onclick="loadProducts('${c}')">${m.icon} ${m.text}</button>`;
+        }).join('');
+    }
+
+    function cardHtml(p) {
+      const cat = CATEGORY_MAP[p.category] || { text: p.category, icon: '📦' };
+      const thumb = p.image
+        ? `<div class="product-thumb"><img src="${p.image}" style="height:100%;object-fit:cover;width:100%"></div>`
+        : `<div class="product-thumb">${cat.icon}</div>`;
+      return `
+        <div class="product-card">
+          ${thumb}
+          <div class="product-body">
+            <span class="product-tag">${cat.icon} ${cat.text}</span>
+            <div class="product-name">${escapeHtml(p.name)}</div>
+            <div class="product-desc">${escapeHtml(p.description)}</div>
+            <div class="product-price">
+              <span class="price-now"><small>¥</small>${Number(p.price).toFixed(2)}</span>
+              ${p.originalPrice > p.price ? `<span class="price-old">¥${Number(p.originalPrice).toFixed(2)}</span>` : ''}
+            </div>
+            <div class="product-meta"><span>已售 ${p.sales || 0}</span><span>库存 ${p.stock}</span></div>
+            <button class="btn btn-block" onclick="openOrder(${p.id})">立即购买</button>
+          </div>
+        </div>`;
+    }
+
+    function openOrder(pid) {
+      if (!currentUser) { location.href = '/login.html?next=/'; return; }
+      selectedProduct = allProducts.find(p => p.id === pid);
+      if (!selectedProduct) return;
+      const p = selectedProduct;
+      const needAcct = p.category === 'plus' || p.category === 'team';
+      document.getElementById('acctGroup').style.display = needAcct ? '' : 'none';
+      document.getElementById('pwdGroup').style.display = needAcct ? '' : 'none';
+      document.getElementById('orderProductInfo').innerHTML =
+        `<div class="product-name">${escapeHtml(p.name)}</div>
+         <div class="product-price"><span class="price-now"><small>¥</small>${Number(p.price).toFixed(2)}</span></div>
+         <div class="muted" style="font-size:13px">${escapeHtml(p.description)}</div>`;
+      document.getElementById('qty').value = 1;
+      document.getElementById('orderErr').style.display = 'none';
+      document.getElementById('orderModal').classList.add('show');
+    }
+    function closeOrder() { document.getElementById('orderModal').classList.remove('show'); }
+
+    async function submitOrder() {
+      const btn = document.getElementById('submitOrderBtn');
+      const err = document.getElementById('orderErr');
+      err.style.display = 'none';
+      const payload = {
+        productId: selectedProduct.id,
+        quantity: parseInt(document.getElementById('qty').value, 10) || 1,
+        chatgptEmail: document.getElementById('cgEmail').value.trim(),
+        chatgptPassword: document.getElementById('cgPwd').value.trim(),
+        contact: document.getElementById('contact').value.trim(),
+        remark: document.getElementById('remark').value.trim(),
+      };
+      btn.disabled = true; btn.textContent = '提交中...';
+      try {
+        const { order } = await API.post('/api/orders', payload);
+        location.href = `/orders.html?pay=${order.id}`;
+      } catch (e) {
+        err.textContent = e.message; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '提交订单并去支付';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

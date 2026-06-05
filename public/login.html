@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>登录 - ChatGPT 代充平台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+  <main class="container">
+    <div class="auth-wrap card">
+      <h2>欢迎回来</h2>
+      <p class="sub">登录后即可下单代充</p>
+      <div class="alert alert-error" id="err" style="display:none"></div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label>用户名 / 邮箱</label>
+          <input type="text" class="form-control" id="username" required autocomplete="username" />
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" class="form-control" id="password" required autocomplete="current-password" />
+        </div>
+        <button class="btn btn-block" type="submit" id="btn">登录</button>
+      </form>
+      <div class="auth-switch">还没有账号？<a href="/register.html">立即注册</a></div>
+      <div class="auth-switch muted" style="font-size:12px">演示账号：demo / demo123 ｜ 管理员：admin / admin123</div>
+    </div>
+  </main>
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar();
+    const params = new URLSearchParams(location.search);
+    const next = params.get('next') || '/';
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      const btn = document.getElementById('btn');
+      err.style.display = 'none';
+      btn.disabled = true; btn.textContent = '登录中...';
+      try {
+        const { user } = await API.post('/api/auth/login', {
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value,
+        });
+        toast('登录成功', 'ok');
+        setTimeout(() => location.href = user.role === 'admin' ? '/admin/' : next, 500);
+      } catch (ex) {
+        err.textContent = ex.message; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '登录';
+      }
+    });
+  </script>
+</body>
+</html>

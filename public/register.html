@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>注册 - ChatGPT 代充平台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+  <main class="container">
+    <div class="auth-wrap card">
+      <h2>创建账号</h2>
+      <p class="sub">注册即可享受代充服务</p>
+      <div class="alert alert-error" id="err" style="display:none"></div>
+      <form id="regForm">
+        <div class="form-group">
+          <label>用户名</label>
+          <input type="text" class="form-control" id="username" required placeholder="2-20 位字母/数字/中文" />
+        </div>
+        <div class="form-group">
+          <label>邮箱 <span class="muted">(选填)</span></label>
+          <input type="email" class="form-control" id="email" placeholder="用于找回账号" />
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" class="form-control" id="password" required placeholder="至少 6 位" />
+        </div>
+        <button class="btn btn-block" type="submit" id="btn">注册</button>
+      </form>
+      <div class="auth-switch">已有账号？<a href="/login.html">去登录</a></div>
+    </div>
+  </main>
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar();
+    document.getElementById('regForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      const btn = document.getElementById('btn');
+      err.style.display = 'none';
+      btn.disabled = true; btn.textContent = '注册中...';
+      try {
+        await API.post('/api/auth/register', {
+          username: document.getElementById('username').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value,
+        });
+        toast('注册成功', 'ok');
+        setTimeout(() => location.href = '/', 500);
+      } catch (ex) {
+        err.textContent = ex.message; err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '注册';
+      }
+    });
+  </script>
+</body>
+</html>

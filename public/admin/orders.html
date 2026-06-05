@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>订单管理 - 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="adminLayout">
+    <div class="page-head">
+      <h2>订单管理</h2>
+      <div class="row">
+        <select class="form-control" id="filterStatus" onchange="load()" style="width:auto">
+          <option value="">全部状态</option>
+          <option value="pending">待支付</option>
+          <option value="paid">已支付·待处理</option>
+          <option value="processing">处理中</option>
+          <option value="completed">已完成</option>
+          <option value="cancelled">已取消</option>
+        </select>
+        <input class="form-control" id="kw" placeholder="订单号/用户/邮箱" style="width:auto" onkeyup="if(event.key==='Enter')load()" />
+        <button class="btn" onclick="load()">搜索</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>订单号</th><th>商品</th><th>用户</th><th>金额</th><th>支付</th><th>状态</th><th>下单时间</th><th>操作</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="8" class="empty">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="detailModal">
+    <div class="modal">
+      <div class="modal-header"><h3>订单详情</h3><button class="close-x" onclick="closeDetail()">&times;</button></div>
+      <div class="modal-body" id="detailBody"></div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin-common.js"></script>
+  <script>
+    let orders = [], current = null;
+    async function init() {
+      const me = await initAdmin('orders');
+      if (!me) return;
+      await load();
+    }
+    async function load() {
+      const status = document.getElementById('filterStatus').value;
+      const kw = document.getElementById('kw').value.trim();
+      const qs = new URLSearchParams();
+      if (status) qs.set('status', status);
+      if (kw) qs.set('keyword', kw);
+      const { orders: list } = await API.get('/api/admin/orders?' + qs.toString());
+      orders = list;
+      document.getElementById('rows').innerHTML = list.length ? list.map(o => {
+        const pay = o.paymentMethod === 'mock' ? '模拟' : (o.paymentMethod === 'manual' ? '收款码' : (o.paymentMethod || '-'));
+        return `<tr>
+          <td>${o.orderNo}</td><td>${escapeHtml(o.productName)} ×${o.quantity}</td>
+          <td>${escapeHtml(o.username)}</td><td>${money(o.amount)}</td><td>${pay}</td>
+          <td>${statusBadge(o.status)}</td><td>${fmtDate(o.createdAt)}</td>
+          <td><button class="btn btn-sm btn-outline" onclick="openDetail(${o.id})">处理</button></td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="8" class="empty">暂无订单</td></tr>';
+    }
+
+    function openDetail(id) {
+      current = orders.find(o => o.id === id);
+      const o = current;
+      const proof = o.paymentProof
+        ? `<a href="${o.paymentProof}" target="_blank"><img src="${o.paymentProof}" style="max-width:180px;border:1px solid var(--border);border-radius:8px"></a>`
+        : '<span class="muted">无</span>';
+      document.getElementById('detailBody').innerHTML = `
+        <table style="font-size:14px">
+          <tr><th>订单号</th><td>${o.orderNo}</td></tr>
+          <tr><th>商品</th><td>${escapeHtml(o.productName)} × ${o.quantity}</td></tr>
+          <tr><th>金额</th><td><strong>${money(o.amount)}</strong></td></tr>
+          <tr><th>下单用户</th><td>${escapeHtml(o.username)}</td></tr>
+          <tr><th>ChatGPT邮箱</th><td>${escapeHtml(o.chatgptEmail) || '-'}</td></tr>
+          <tr><th>账号密码</th><td>${escapeHtml(o.chatgptPassword) || '-'}</td></tr>
+          <tr><th>联系方式</th><td>${escapeHtml(o.contact) || '-'}</td></tr>
+          <tr><th>用户备注</th><td>${escapeHtml(o.remark) || '-'}</td></tr>
+          <tr><th>当前状态</th><td>${statusBadge(o.status)}</td></tr>
+          <tr><th>支付凭证</th><td>${proof}</td></tr>
+          <tr><th>下单时间</th><td>${fmtDate(o.createdAt)}</td></tr>
+          <tr><th>支付时间</th><td>${fmtDate(o.paidAt)}</td></tr>
+        </table>
+        <hr class="mt mb" style="border:none;border-top:1px solid var(--border)">
+        <div class="form-group">
+          <label>修改状态</label>
+          <select class="form-control" id="d_status">
+            <option value="pending">待支付</option>
+            <option value="paid">已支付·待处理</option>
+            <option value="processing">处理中</option>
+            <option value="completed">已完成 (扣库存+1销量)</option>
+            <option value="cancelled">已取消</option>
+            <option value="refunded">已退款</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>交付内容 <span class="muted">(如兑换码，用户可见)</span></label>
+          <textarea class="form-control" id="d_deliver">${escapeHtml(o.deliverContent)}</textarea>
+        </div>
+        <div class="form-group">
+          <label>客服备注 <span class="muted">(用户可见)</span></label>
+          <textarea class="form-control" id="d_note">${escapeHtml(o.adminNote)}</textarea>
+        </div>
+        <button class="btn btn-block" id="updBtn" onclick="update()">保存处理结果</button>`;
+      document.getElementById('d_status').value = o.status;
+      document.getElementById('detailModal').classList.add('show');
+    }
+    function closeDetail() { document.getElementById('detailModal').classList.remove('show'); }
+
+    async function update() {
+      const btn = document.getElementById('updBtn');
+      btn.disabled = true; btn.textContent = '保存中...';
+      try {
+        await API.put('/api/admin/orders/' + current.id, {
+          status: document.getElementById('d_status').value,
+          deliverContent: document.getElementById('d_deliver').value,
+          adminNote: document.getElementById('d_note').value,
+        });
+        toast('已更新', 'ok'); closeDetail(); load();
+      } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '保存处理结果'; }
+    }
+
+    init();
+  </script>
+</body>
+</html>

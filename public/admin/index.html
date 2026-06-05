@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>数据看板 - 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="adminLayout">
+    <div class="stat-grid" id="statGrid"><div class="empty">加载中...</div></div>
+    <div class="card">
+      <h3 class="mb">最近订单</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>订单号</th><th>商品</th><th>用户</th><th>金额</th><th>状态</th><th>时间</th></tr></thead>
+          <tbody id="recentOrders"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin-common.js"></script>
+  <script>
+    async function init() {
+      const me = await initAdmin('dashboard');
+      if (!me) return;
+      try {
+        const { stats } = await API.get('/api/admin/stats');
+        const cards = [
+          { num: stats.totalOrders, label: '总订单数' },
+          { num: stats.paidPending, label: '待处理(已付款)' },
+          { num: stats.pendingOrders, label: '待支付' },
+          { num: stats.completedOrders, label: '已完成' },
+          { num: money(stats.revenue), label: '总营收' },
+          { num: stats.totalUsers, label: '用户数' },
+          { num: stats.totalProducts, label: '商品数' },
+          { num: stats.todayOrders, label: '今日订单' },
+        ];
+        document.getElementById('statGrid').innerHTML = cards.map(c =>
+          `<div class="stat-card"><div class="num">${c.num}</div><div class="label">${c.label}</div></div>`).join('');
+      } catch (e) { toast(e.message, 'err'); }
+
+      try {
+        const { orders } = await API.get('/api/admin/orders');
+        const recent = orders.slice(0, 8);
+        document.getElementById('recentOrders').innerHTML = recent.length ? recent.map(o =>
+          `<tr><td>${o.orderNo}</td><td>${escapeHtml(o.productName)}</td><td>${escapeHtml(o.username)}</td>
+           <td>${money(o.amount)}</td><td>${statusBadge(o.status)}</td><td>${fmtDate(o.createdAt)}</td></tr>`).join('')
+          : '<tr><td colspan="6" class="empty">暂无订单</td></tr>';
+      } catch (e) { toast(e.message, 'err'); }
+    }
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>站点设置 - 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="adminLayout">
+    <div class="page-head"><h2>站点设置</h2></div>
+    <div class="alert alert-success" id="ok" style="display:none">已保存</div>
+
+    <div class="card mb">
+      <h3 class="mb">基本信息</h3>
+      <div class="form-group"><label>站点名称</label><input class="form-control" id="siteName" /></div>
+      <div class="form-group"><label>副标题 / Slogan</label><input class="form-control" id="slogan" /></div>
+      <div class="form-group"><label>首页公告</label><textarea class="form-control" id="announcement"></textarea></div>
+      <div class="form-group"><label>联系方式</label><input class="form-control" id="contactInfo" /></div>
+    </div>
+
+    <div class="card mb">
+      <h3 class="mb">收款码（用户支付时展示）</h3>
+      <p class="form-hint mb">上传你的支付宝 / 微信个人收款二维码图片，用户下单后扫码付款并上传凭证，你在订单管理中核实后处理。这是最简单、无需商户接口即可真实收款的方式。</p>
+      <div class="row">
+        <div class="form-group" style="flex:1">
+          <label>支付宝收款码</label>
+          <input type="file" class="form-control" accept="image/*" onchange="uploadQr(this,'alipayQr')" />
+          <div id="alipayPreview" class="mt"></div>
+        </div>
+        <div class="form-group" style="flex:1">
+          <label>微信收款码</label>
+          <input type="file" class="form-control" accept="image/*" onchange="uploadQr(this,'wechatQr')" />
+          <div id="wechatPreview" class="mt"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mb">
+      <h3 class="mb">支付选项</h3>
+      <div class="form-group">
+        <label><input type="checkbox" id="mockPayEnabled" /> 开启「模拟支付」按钮</label>
+        <div class="form-hint">用于测试跑通下单→支付→处理流程。<strong>正式上线请关闭。</strong></div>
+      </div>
+      <hr class="mt mb" style="border:none;border-top:1px solid var(--border)">
+      <h4 class="mb">在线支付网关（易支付 / epay 兼容，选填）</h4>
+      <p class="form-hint mb">如你拥有易支付类聚合支付商户，可在此填写参数对接自动支付。留空则使用上方收款码方式。</p>
+      <div class="form-group"><label><input type="checkbox" id="epayEnabled" /> 启用 epay 在线支付</label></div>
+      <div class="form-group"><label>API 网关地址</label><input class="form-control" id="epayApiUrl" placeholder="https://pay.example.com/submit.php" /></div>
+      <div class="row">
+        <div class="form-group" style="flex:1"><label>商户 PID</label><input class="form-control" id="epayPid" /></div>
+        <div class="form-group" style="flex:1"><label>商户密钥 KEY</label><input class="form-control" id="epayKey" /></div>
+      </div>
+    </div>
+
+    <button class="btn" id="saveBtn" onclick="save()">保存全部设置</button>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin-common.js"></script>
+  <script>
+    let s = {};
+    async function init() {
+      const me = await initAdmin('settings');
+      if (!me) return;
+      s = (await API.get('/api/admin/settings')).settings;
+      document.getElementById('siteName').value = s.siteName || '';
+      document.getElementById('slogan').value = s.slogan || '';
+      document.getElementById('announcement').value = s.announcement || '';
+      document.getElementById('contactInfo').value = s.contactInfo || '';
+      document.getElementById('mockPayEnabled').checked = !!s.mockPayEnabled;
+      const epay = s.epay || {};
+      document.getElementById('epayEnabled').checked = !!epay.enabled;
+      document.getElementById('epayApiUrl').value = epay.apiUrl || '';
+      document.getElementById('epayPid').value = epay.pid || '';
+      document.getElementById('epayKey').value = epay.key || '';
+      renderQr('alipayPreview', s.alipayQr);
+      renderQr('wechatPreview', s.wechatQr);
+    }
+    function renderQr(elId, url) {
+      document.getElementById(elId).innerHTML = url
+        ? `<div class="qr-box"><img src="${url}"><div><a href="javascript:" onclick="clearQr('${elId}')">移除</a></div></div>`
+        : '<span class="muted">未设置</span>';
+    }
+    function clearQr(elId) {
+      const key = elId === 'alipayPreview' ? 'alipayQr' : 'wechatQr';
+      s[key] = '';
+      renderQr(elId, '');
+    }
+    async function uploadQr(input, key) {
+      const f = input.files[0]; if (!f) return;
+      const fd = new FormData(); fd.append('file', f);
+      try {
+        const { url } = await API.post('/api/admin/upload', fd, true);
+        s[key] = url;
+        renderQr(key === 'alipayQr' ? 'alipayPreview' : 'wechatPreview', url);
+        toast('上传成功，记得点保存', 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+    }
+    async function save() {
+      const btn = document.getElementById('saveBtn');
+      btn.disabled = true; btn.textContent = '保存中...';
+      try {
+        await API.put('/api/admin/settings', {
+          siteName: document.getElementById('siteName').value.trim(),
+          slogan: document.getElementById('slogan').value.trim(),
+          announcement: document.getElementById('announcement').value.trim(),
+          contactInfo: document.getElementById('contactInfo').value.trim(),
+          mockPayEnabled: document.getElementById('mockPayEnabled').checked,
+          alipayQr: s.alipayQr || '',
+          wechatQr: s.wechatQr || '',
+          epay: {
+            enabled: document.getElementById('epayEnabled').checked,
+            apiUrl: document.getElementById('epayApiUrl').value.trim(),
+            pid: document.getElementById('epayPid').value.trim(),
+            key: document.getElementById('epayKey').value.trim(),
+          },
+        });
+        const ok = document.getElementById('ok');
+        ok.style.display = 'block'; setTimeout(() => ok.style.display = 'none', 2000);
+        toast('已保存', 'ok');
+      } catch (e) { toast(e.message, 'err'); }
+      finally { btn.disabled = false; btn.textContent = '保存全部设置'; }
+    }
+    init();
+  </script>
+</body>
+</html>
