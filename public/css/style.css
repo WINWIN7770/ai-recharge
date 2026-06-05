@@ -198,3 +198,115 @@ tr:hover td { background: #fafbfc; }
   .sidebar .logo-area, .sidebar nav a span { display: none; }
   .nav-links { gap: 12px; }
 }
+
+/* =====================================================================
+   升级版落地页样式（Hero / 流程 / 品牌Tab / 评价 / 信任 / 页脚）
+   ===================================================================== */
+
+/* —— 升级版 Hero —— */
+.hero-pro {
+  position: relative; overflow: hidden;
+  background: radial-gradient(1200px 600px at 20% -10%, #1a8f74 0%, transparent 60%),
+              radial-gradient(900px 500px at 90% 10%, #0c7a5e 0%, transparent 55%),
+              linear-gradient(135deg, #0b3d31 0%, #0e8e6d 100%);
+  color: #fff; padding: 70px 20px 60px; text-align: center;
+}
+.hero-pro::after {
+  content: ''; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size: 22px 22px; pointer-events: none;
+}
+.hero-pro .inner { position: relative; max-width: 880px; margin: 0 auto; z-index: 1; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 13px;
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22);
+  padding: 6px 14px; border-radius: 30px; margin-bottom: 20px; backdrop-filter: blur(6px);
+}
+.hero-pro h1 { font-size: 42px; line-height: 1.2; margin-bottom: 16px; font-weight: 800; letter-spacing: -.5px; }
+.hero-pro h1 .grad { background: linear-gradient(90deg,#a7f3d0,#fef9c3); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero-pro .lead { font-size: 17px; opacity: .92; margin-bottom: 28px; }
+.hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-bottom: 36px; }
+.btn-hero { padding: 14px 30px; font-size: 16px; font-weight: 600; border-radius: 12px; background: #fff; color: var(--primary-dark); box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+.btn-hero:hover { background: #f0fdf9; transform: translateY(-2px); }
+.btn-hero-ghost { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.35); }
+.btn-hero-ghost:hover { background: rgba(255,255,255,.2); }
+.hero-stats { display: flex; gap: 40px; justify-content: center; flex-wrap: wrap; }
+.hero-stats .s-num { font-size: 30px; font-weight: 800; }
+.hero-stats .s-label { font-size: 13px; opacity: .82; }
+.hero-live {
+  display: inline-flex; align-items: center; gap: 8px; margin-top: 26px;
+  font-size: 13px; background: rgba(0,0,0,.18); padding: 7px 16px; border-radius: 30px;
+}
+.live-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; box-shadow: 0 0 0 0 rgba(74,222,128,.7); animation: pulse 1.6s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(74,222,128,.7); } 70% { box-shadow: 0 0 0 10px rgba(74,222,128,0); } 100% { box-shadow: 0 0 0 0 rgba(74,222,128,0); } }
+
+/* —— 信任徽章条 —— */
+.trust-bar { background: var(--card); border-bottom: 1px solid var(--border); }
+.trust-bar .inner { max-width: 1180px; margin: 0 auto; padding: 16px 20px; display: flex; gap: 28px; justify-content: center; flex-wrap: wrap; }
+.trust-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text); font-weight: 500; }
+.trust-item .ti-ico { font-size: 20px; }
+
+/* —— 通用区块标题 —— */
+.section { padding: 56px 20px; }
+.section-head { text-align: center; max-width: 640px; margin: 0 auto 40px; }
+.section-head .kicker { color: var(--primary); font-weight: 700; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; }
+.section-head h2 { font-size: 30px; margin: 8px 0 10px; font-weight: 800; }
+.section-head p { color: var(--muted); font-size: 15px; }
+.section.alt { background: #fff; }
+
+/* —— 品牌 Tab —— */
+.brand-tabs { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-bottom: 32px; }
+.brand-tab {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 30px;
+  border: 1px solid var(--border); background: var(--card); cursor: pointer; font-size: 14px;
+  font-weight: 600; color: var(--text); transition: .15s;
+}
+.brand-tab:hover { border-color: var(--primary); }
+.brand-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); box-shadow: 0 6px 16px rgba(16,163,127,.28); }
+
+/* —— 商品卡增强 —— */
+.product-card { position: relative; }
+.product-badge {
+  position: absolute; top: 12px; right: 12px; z-index: 2;
+  background: linear-gradient(135deg,#ef4444,#f97316); color: #fff; font-size: 12px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px; box-shadow: 0 4px 10px rgba(239,68,68,.3);
+}
+.product-features { list-style: none; margin: 0 0 12px; padding: 0; }
+.product-features li { font-size: 12.5px; color: var(--muted); padding-left: 18px; position: relative; margin-bottom: 3px; }
+.product-features li::before { content: '✓'; position: absolute; left: 0; color: var(--primary); font-weight: 700; }
+.delivery-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); background: #f3f4f6; padding: 2px 8px; border-radius: 4px; margin-left: 6px; }
+
+/* —— 三步流程 —— */
+.flow-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; }
+.flow-step { background: var(--card); border-radius: 16px; padding: 30px 26px; box-shadow: var(--shadow); position: relative; text-align: center; border: 1px solid var(--border); transition: .2s; }
+.flow-step:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(0,0,0,.1); }
+.flow-num { width: 46px; height: 46px; border-radius: 50%; background: var(--primary-light); color: var(--primary); font-size: 20px; font-weight: 800; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+.flow-step h3 { font-size: 18px; margin-bottom: 8px; }
+.flow-step p { font-size: 14px; color: var(--muted); }
+.flow-ico { font-size: 34px; margin-bottom: 6px; }
+
+/* —— 真人评价 —— */
+.reviews-track { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px,1fr)); gap: 20px; max-width: 1180px; margin: 0 auto; }
+.review-card { background: var(--card); border-radius: 14px; padding: 24px; box-shadow: var(--shadow); border: 1px solid var(--border); }
+.review-stars { color: #f59e0b; font-size: 15px; margin-bottom: 10px; }
+.review-text { font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 16px; }
+.review-user { display: flex; align-items: center; gap: 12px; }
+.review-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg,var(--primary),#0c7a5e); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; }
+.review-meta .rn { font-weight: 600; font-size: 14px; }
+.review-meta .rr { font-size: 12px; color: var(--muted); }
+.review-tag { font-size: 11px; color: var(--primary); background: var(--primary-light); padding: 2px 8px; border-radius: 4px; }
+
+/* —— 页脚 —— */
+.site-footer { background: #0f172a; color: #94a3b8; padding: 48px 20px 24px; margin-top: 60px; }
+.footer-inner { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 40px; }
+.footer-brand .fb-name { color: #fff; font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+.footer-brand p { font-size: 13px; line-height: 1.7; max-width: 320px; }
+.footer-col h4 { color: #fff; font-size: 15px; margin-bottom: 14px; }
+.footer-col a { display: block; color: #94a3b8; font-size: 13px; margin-bottom: 9px; }
+.footer-col a:hover { color: #fff; text-decoration: none; }
+.footer-bottom { max-width: 1180px; margin: 32px auto 0; padding-top: 20px; border-top: 1px solid #1e293b; font-size: 12px; text-align: center; color: #64748b; }
+@media (max-width: 720px) {
+  .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+  .hero-pro h1 { font-size: 32px; }
+  .hero-stats { gap: 24px; }
+}

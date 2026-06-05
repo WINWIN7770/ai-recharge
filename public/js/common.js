@@ -52,10 +52,30 @@ function statusBadge(s) {
 
 const CATEGORY_MAP = {
   plus: { text: 'Plus 会员', icon: '⚡' },
-  api: { text: 'API 额度', icon: '🔌' },
+  pro: { text: 'Pro 专业版', icon: '🚀' },
+  max: { text: 'Max 旗舰版', icon: '💎' },
   team: { text: 'Team 团队版', icon: '👥' },
+  advanced: { text: 'Advanced', icon: '✨' },
+  api: { text: 'API 额度', icon: '🔌' },
   gift: { text: '礼品卡', icon: '🎁' },
+  id: { text: 'Apple ID', icon: '🍎' },
   other: { text: '其他', icon: '📦' },
+};
+
+// 品牌分组（首页 Tab 与商品归类）
+const BRAND_MAP = {
+  gpt:    { text: 'ChatGPT', icon: '🟢', color: '#10a37f', tagline: 'OpenAI 旗舰模型，智能对话与创意助手' },
+  claude: { text: 'Claude',  icon: '🟣', color: '#d97757', tagline: 'Anthropic 顶尖模型，长文本分析专家' },
+  gemini: { text: 'Gemini',  icon: '🔵', color: '#4285f4', tagline: 'Google 原生多模态，深度集成生态' },
+  grok:   { text: 'Grok',    icon: '⚫', color: '#111827', tagline: 'xAI 实时资讯模型，幽默风趣' },
+  suno:   { text: 'Suno',    icon: '🎵', color: '#8b5cf6', tagline: 'AI 音乐生成平台，创作无限旋律' },
+  apple:  { text: 'Apple ID', icon: '🍎', color: '#374151', tagline: '免费海外账号，畅享全球资源' },
+};
+
+const DELIVERY_MAP = {
+  link: { text: '专属升级链接', icon: '🔗' },
+  card: { text: '卡密秒发', icon: '⚡' },
+  manual: { text: '人工代充', icon: '🛠️' },
 };
 
 function money(n) { return '¥' + Number(n || 0).toFixed(2); }
