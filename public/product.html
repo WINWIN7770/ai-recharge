@@ -47,6 +47,14 @@
         <div id="orderProductInfo" class="card mb" style="box-shadow:none;border:1px solid var(--border)"></div>
         <div class="alert alert-error" id="orderErr" style="display:none"></div>
         <div class="form-group"><label>购买数量</label><input type="number" class="form-control" id="qty" value="1" min="1" max="99" /></div>
+        <div class="form-group">
+          <label>优惠码 <span class="muted">(选填)</span></label>
+          <div style="display:flex;gap:8px">
+            <input type="text" class="form-control" id="coupon" placeholder="如 WELCOME10" />
+            <button type="button" class="btn btn-outline" onclick="applyCoupon()">应用</button>
+          </div>
+          <div class="form-hint" id="couponHint"></div>
+        </div>
         <div class="form-group" id="acctGroup">
           <label>账号 <span class="muted">(代充至此账号)</span></label>
           <input type="text" class="form-control" id="cgEmail" placeholder="您的登录邮箱/账号" />
@@ -147,10 +155,30 @@
          <div class="product-price"><span class="price-now"><small>¥</small>${Number(p.price).toFixed(0)}</span>
            ${dlv ? `<span class="delivery-chip">${dlv.icon}${dlv.text}</span>` : ''}</div>`;
       document.getElementById('qty').value = 1;
+      document.getElementById('coupon').value = '';
+      document.getElementById('couponHint').textContent = '';
       document.getElementById('orderErr').style.display = 'none';
       document.getElementById('orderModal').classList.add('show');
     }
     function closeOrder() { document.getElementById('orderModal').classList.remove('show'); }
+
+    async function applyCoupon() {
+      const code = document.getElementById('coupon').value.trim();
+      const hint = document.getElementById('couponHint');
+      if (!code) { hint.textContent = ''; return; }
+      try {
+        const r = await API.post('/api/orders/check-coupon', {
+          productId: product.id,
+          quantity: parseInt(document.getElementById('qty').value, 10) || 1,
+          code,
+        });
+        hint.style.color = 'var(--ok)';
+        hint.textContent = `✓ 可减 ¥${r.discount}，实付 ¥${r.payable}`;
+      } catch (e) {
+        hint.style.color = 'var(--danger)';
+        hint.textContent = '✗ ' + e.message;
+      }
+    }
 
     async function submitOrder() {
       const btn = document.getElementById('submitOrderBtn');
@@ -159,6 +187,7 @@
       const payload = {
         productId: product.id,
         quantity: parseInt(document.getElementById('qty').value, 10) || 1,
+        couponCode: document.getElementById('coupon').value.trim(),
         chatgptEmail: document.getElementById('cgEmail').value.trim(),
         chatgptPassword: document.getElementById('cgPwd').value.trim(),
         contact: document.getElementById('contact').value.trim(),
@@ -167,7 +196,7 @@
       btn.disabled = true; btn.textContent = '提交中...';
       try {
         const { order } = await API.post('/api/orders', payload);
-        location.href = `/orders.html?pay=${order.id}`;
+        location.href = `/checkout.html?order=${order.id}`;
       } catch (e) {
         err.textContent = e.message; err.style.display = 'block';
         btn.disabled = false; btn.textContent = '提交订单并去支付';

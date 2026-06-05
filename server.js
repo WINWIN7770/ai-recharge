@@ -45,6 +45,7 @@ app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/products', require('./src/routes/products'));
 app.use('/api/settings', require('./src/routes/settings'));
 app.use('/api/orders', require('./src/routes/orders'));
+app.use('/api/account', require('./src/routes/account'));
 app.use('/api/admin', require('./src/routes/admin'));
 
 // 健康检查

@@ -111,6 +111,18 @@ async function seedProducts() {
   console.log(`  ✓ ${reseed ? '已升级' : '已创建'}商品目录（v${PRODUCTS_SEED_VERSION}，共 ${list.length} 个多品牌商品）`);
 }
 
+async function seedCoupons() {
+  if (readCollection('coupons').length > 0) return;
+  await writeCollection('coupons', [
+    {
+      id: 1, code: 'WELCOME10', type: 'fixed', value: 10, minAmount: 50,
+      firstOrderOnly: true, maxUses: 0, usedCount: 0, enabled: true,
+      expiresAt: '', createdAt: new Date().toISOString(),
+    },
+  ]);
+  console.log('  ✓ 已创建首单优惠券 WELCOME10');
+}
+
 async function seedSettings() {
   if (has('settings') && readObject('settings', {}).siteName) return;
   await writeObject('settings', {
@@ -119,6 +131,7 @@ async function seedSettings() {
     announcement: '🎉 新用户首单立减 ¥10！支持 ChatGPT / Claude / Gemini / Grok / Suno 全系列，下单后 2 分钟内自动到账。',
     contactInfo: '客户经理微信：your_wechat_id ｜ 邮箱：service@example.com ｜ 工作时间 9:00–24:00',
     heroStats: { users: '10万+', orders: '38万+', rate: '99.6%' },
+    commissionRate: 0.1,
     alipayQr: '',
     wechatQr: '',
     epay: { enabled: false, apiUrl: '', pid: '', key: '' },
@@ -131,6 +144,7 @@ async function run() {
   console.log('正在初始化种子数据...');
   await seedUsers();
   await seedProducts();
+  await seedCoupons();
   await seedSettings();
   console.log('种子数据初始化完成。');
 }

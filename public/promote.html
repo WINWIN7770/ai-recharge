@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>推广赚钱 - AI 代充平台</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .promo-hero { background: linear-gradient(135deg,#10a37f,#0c7a5e); color:#fff; border-radius:16px; padding:30px; margin-bottom:22px; }
+    .promo-hero h2 { font-size:24px; margin-bottom:8px; }
+    .promo-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:16px; margin-bottom:22px; }
+    .link-box { display:flex; gap:10px; margin-top:14px; flex-wrap:wrap; }
+    .link-box input { flex:1; min-width:240px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3); color:#fff; padding:11px 14px; border-radius:8px; font-size:14px; }
+  </style>
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+  <main class="container">
+    <div id="root"><div class="empty">加载中...</div></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script>
+    let info = null, rate = 0.1;
+    async function init() {
+      const user = await renderNavbar();
+      if (!user) { location.href = '/login.html?next=/promote.html'; return; }
+      try { rate = (await API.get('/api/settings')).settings.commissionRate || 0.1; } catch {}
+      try {
+        info = await API.get('/api/account/promo');
+        render();
+      } catch (e) { document.getElementById('root').innerHTML = `<div class="empty">${e.message}</div>`; }
+    }
+    function render() {
+      const link = location.origin + '/register.html?ref=' + info.referralCode;
+      document.getElementById('root').innerHTML = `
+        <div class="promo-hero">
+          <h2>🎁 邀请好友，赚取佣金</h2>
+          <p>每位好友通过你的链接注册并下单成功，你立得订单金额 <strong>${Math.round(rate*100)}%</strong> 的佣金。</p>
+          <div class="link-box">
+            <input id="refLink" value="${link}" readonly />
+            <button class="btn btn-hero" onclick="copyLink()">复制邀请链接</button>
+          </div>
+          <p style="margin-top:10px;opacity:.85;font-size:13px">你的专属邀请码：<strong>${info.referralCode}</strong></p>
+        </div>
+
+        <div class="promo-stats">
+          <div class="stat-card"><div class="num">${info.invitedCount}</div><div class="label">已邀请好友</div></div>
+          <div class="stat-card"><div class="num">¥${info.earnings}</div><div class="label">累计佣金</div></div>
+          <div class="stat-card"><div class="num">¥${info.balance}</div><div class="label">当前余额</div></div>
+        </div>
+
+        <div class="card mb">
+          <h3 style="margin-bottom:12px">佣金记录</h3>
+          ${info.records.length ? `<div class="table-wrap" style="box-shadow:none">
+            <table><thead><tr><th>时间</th><th>来源订单</th><th>买家</th><th>佣金</th></tr></thead>
+            <tbody>${info.records.map(r => `<tr><td class="muted" style="font-size:12px">${fmtDate(r.createdAt)}</td><td>${escapeHtml(r.orderNo)}</td><td>${escapeHtml(r.buyerName||'-')}</td><td style="color:var(--ok)">+¥${r.amount}</td></tr>`).join('')}</tbody></table>
+          </div>` : '<div class="empty">还没有佣金记录，快去分享你的邀请链接吧！</div>'}
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom:12px">已邀请好友（${info.invitedCount}）</h3>
+          ${info.invitedUsers.length ? info.invitedUsers.map(u => `<div class="sum-line" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--border)"><span>${escapeHtml(u.username)}</span><span class="muted">${fmtDate(u.createdAt)}</span></div>`).join('') : '<div class="empty">暂无邀请好友</div>'}
+        </div>`;
+    }
+    function copyLink() {
+      const el = document.getElementById('refLink');
+      el.select();
+      navigator.clipboard.writeText(el.value).then(() => toast('邀请链接已复制', 'ok'))
+        .catch(() => { document.execCommand('copy'); toast('已复制', 'ok'); });
+    }
+    init();
+  </script>
+</body>
+</html>

@@ -13,6 +13,7 @@ router.get('/', (req, res) => {
       announcement: s.announcement || '',
       contactInfo: s.contactInfo || '',
       heroStats: s.heroStats || { users: '10万+', orders: '38万+', rate: '99.6%' },
+      commissionRate: s.commissionRate != null ? s.commissionRate : 0.1,
       alipayQr: s.alipayQr || '',
       wechatQr: s.wechatQr || '',
       mockPayEnabled: !!s.mockPayEnabled,

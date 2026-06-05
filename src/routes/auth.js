@@ -8,7 +8,7 @@ const USERNAME_RE = /^[a-zA-Z0-9_一-龥]{2,20}$/;
 
 // 注册
 router.post('/register', async (req, res) => {
-  const { username, email, password } = req.body || {};
+  const { username, email, password, ref } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: '用户名为 2-20 位字母/数字/下划线/中文' });
   if (String(password).length < 6) return res.status(400).json({ error: '密码至少 6 位' });
@@ -17,15 +17,24 @@ router.post('/register', async (req, res) => {
   if (users.some((u) => u.username === username)) return res.status(400).json({ error: '用户名已存在' });
   if (email && users.some((u) => u.email === email)) return res.status(400).json({ error: '邮箱已被注册' });
 
+  const id = nextId(users);
   const user = {
-    id: nextId(users),
+    id,
     username,
     email: email || '',
     passwordHash: auth.hashPassword(password),
     role: 'user',
     balance: 0,
+    referralCode: 'R' + String(id).padStart(5, '0'),
+    referredBy: null,
     createdAt: new Date().toISOString(),
   };
+  // 绑定推荐人
+  const refCode = String(ref || '').trim();
+  if (refCode) {
+    const referrer = users.find((u) => u.referralCode === refCode);
+    if (referrer && referrer.id !== id) user.referredBy = referrer.id;
+  }
   users.push(user);
   await writeCollection('users', users);
 

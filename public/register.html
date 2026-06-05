@@ -12,6 +12,7 @@
     <div class="auth-wrap card">
       <h2>创建账号</h2>
       <p class="sub">注册即可享受代充服务</p>
+      <div class="alert alert-info" id="refTip" style="display:none"></div>
       <div class="alert alert-error" id="err" style="display:none"></div>
       <form id="regForm">
         <div class="form-group">
@@ -34,6 +35,12 @@
   <script src="/js/common.js"></script>
   <script>
     renderNavbar();
+    const refCode = new URLSearchParams(location.search).get('ref') || '';
+    if (refCode) {
+      const tip = document.getElementById('refTip');
+      tip.textContent = '🎁 你正在通过好友邀请码 ' + refCode + ' 注册';
+      tip.style.display = 'block';
+    }
     document.getElementById('regForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const err = document.getElementById('err');
@@ -45,6 +52,7 @@
           username: document.getElementById('username').value.trim(),
           email: document.getElementById('email').value.trim(),
           password: document.getElementById('password').value,
+          ref: refCode,
         });
         toast('注册成功', 'ok');
         setTimeout(() => location.href = '/', 500);

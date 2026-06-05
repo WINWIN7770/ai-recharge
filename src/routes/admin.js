@@ -2,6 +2,7 @@ const express = require('express');
 const { readCollection, writeCollection, readObject, writeObject, nextId } = require('../db');
 const { memoryUpload, saveUpload } = require('../upload');
 const { requireAdmin } = require('../auth');
+const { settleCommission } = require('../fulfill');
 
 const router = express.Router();
 router.use(requireAdmin); // 整个 admin 路由都需要管理员权限
@@ -189,16 +190,21 @@ router.put('/orders/:id', async (req, res) => {
   if (b.status) {
     if (!VALID.includes(b.status)) return res.status(400).json({ error: '无效状态' });
     o.status = b.status;
+    if (b.status === 'paid' && !o.paidAt) o.paidAt = new Date().toISOString();
     if (b.status === 'completed' && !o.completedAt) {
       o.completedAt = new Date().toISOString();
-      // 完成时扣减库存、增加销量
+      // 非卡密商品：完成时扣减库存、增加销量（卡密商品由自动发卡流程处理）
       const products = readCollection('products');
       const p = products.find((x) => x.id === o.productId);
-      if (p) {
+      if (p && p.deliveryType !== 'card') {
         p.stock = Math.max(0, p.stock - o.quantity);
         p.sales = (p.sales || 0) + o.quantity;
         await writeCollection('products', products);
       }
+    }
+    // 进入「已收款」相关状态时结算推荐返佣（每单仅一次）
+    if (['paid', 'processing', 'completed'].includes(b.status)) {
+      await settleCommission(o);
     }
   }
   if (b.adminNote !== undefined) o.adminNote = b.adminNote;
@@ -239,6 +245,107 @@ router.put('/settings', async (req, res) => {
   if (b.epay) merged.epay = { ...(current.epay || {}), ...b.epay };
   await writeObject('settings', merged);
   res.json({ ok: true, settings: merged });
+});
+
+/* ---------------- 优惠券管理 ---------------- */
+router.get('/coupons', (req, res) => {
+  res.json({ coupons: readCollection('coupons').slice().sort((a, b) => b.id - a.id) });
+});
+
+router.post('/coupons', async (req, res) => {
+  const b = req.body || {};
+  const code = String(b.code || '').trim();
+  if (!code) return res.status(400).json({ error: '优惠码必填' });
+  const coupons = readCollection('coupons');
+  if (coupons.some((c) => c.code.toLowerCase() === code.toLowerCase())) {
+    return res.status(400).json({ error: '优惠码已存在' });
+  }
+  const coupon = {
+    id: nextId(coupons),
+    code,
+    type: b.type === 'percent' ? 'percent' : 'fixed',
+    value: Number(b.value) || 0,
+    minAmount: Number(b.minAmount) || 0,
+    firstOrderOnly: !!b.firstOrderOnly,
+    maxUses: Number(b.maxUses) || 0, // 0=不限
+    usedCount: 0,
+    enabled: b.enabled !== false,
+    expiresAt: b.expiresAt || '',
+    createdAt: new Date().toISOString(),
+  };
+  coupons.push(coupon);
+  await writeCollection('coupons', coupons);
+  res.json({ ok: true, coupon });
+});
+
+router.put('/coupons/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const coupons = readCollection('coupons');
+  const c = coupons.find((x) => x.id === id);
+  if (!c) return res.status(404).json({ error: '优惠券不存在' });
+  const b = req.body || {};
+  for (const f of ['code', 'type', 'expiresAt']) if (b[f] !== undefined) c[f] = b[f];
+  for (const f of ['value', 'minAmount', 'maxUses']) if (b[f] !== undefined) c[f] = Number(b[f]) || 0;
+  if (b.firstOrderOnly !== undefined) c.firstOrderOnly = !!b.firstOrderOnly;
+  if (b.enabled !== undefined) c.enabled = !!b.enabled;
+  await writeCollection('coupons', coupons);
+  res.json({ ok: true, coupon: c });
+});
+
+router.delete('/coupons/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  const coupons = readCollection('coupons');
+  if (!coupons.some((x) => x.id === id)) return res.status(404).json({ error: '优惠券不存在' });
+  await writeCollection('coupons', coupons.filter((x) => x.id !== id));
+  res.json({ ok: true });
+});
+
+/* ---------------- 返佣记录 ---------------- */
+router.get('/commissions', (req, res) => {
+  const logs = readCollection('commissions').slice().sort((a, b) => b.id - a.id);
+  const total = logs.reduce((s, l) => s + (l.amount || 0), 0);
+  res.json({ commissions: logs, total: Math.round(total * 100) / 100 });
+});
+
+/* ---------------- 数据分析（图表） ---------------- */
+router.get('/analytics', (req, res) => {
+  const orders = readCollection('orders');
+  const paidStatuses = ['paid', 'processing', 'completed'];
+
+  // 近 14 天营收与订单数
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    days.push({ date: key, revenue: 0, orders: 0 });
+  }
+  const dayMap = Object.fromEntries(days.map((d) => [d.date, d]));
+  for (const o of orders) {
+    const key = (o.paidAt || o.createdAt || '').slice(0, 10);
+    if (dayMap[key] && paidStatuses.includes(o.status)) {
+      dayMap[key].revenue = Math.round((dayMap[key].revenue + (o.amount || 0)) * 100) / 100;
+      dayMap[key].orders += 1;
+    }
+  }
+
+  // 状态漏斗
+  const funnel = {};
+  for (const o of orders) funnel[o.status] = (funnel[o.status] || 0) + 1;
+
+  // 卡密库存预警（可用 < 5 的卡密类商品）
+  const products = readCollection('products');
+  const cards = readCollection('cards');
+  const lowStock = products
+    .filter((p) => p.deliveryType === 'card' && p.active)
+    .map((p) => ({
+      id: p.id, name: p.name,
+      available: cards.filter((c) => c.productId === p.id && c.status === 'available').length,
+    }))
+    .filter((x) => x.available < 5)
+    .sort((a, b) => a.available - b.available);
+
+  res.json({ daily: days, funnel, lowStock });
 });
 
 module.exports = router;

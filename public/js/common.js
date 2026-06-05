@@ -114,6 +114,8 @@ async function renderNavbar(active) {
       <a href="/" class="brand"><span class="logo">◆</span>${escapeHtml(siteName)}</a>
       <div class="nav-links">
         <a href="/">首页</a>
+        <a href="/query.html">订单查询</a>
+        <a href="/promote.html">推广赚钱</a>
         <a href="/orders.html">我的订单</a>
         <div class="nav-user">${userArea}</div>
       </div>

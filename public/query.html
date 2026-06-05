@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>订单查询 - AI 代充平台</title>
+  <meta name="description" content="输入订单号与联系方式即可查询 AI 代充订单状态与交付内容，无需登录。" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+  <main class="container">
+    <div class="auth-wrap card">
+      <h2>订单查询</h2>
+      <p class="sub">输入订单号与下单时填写的联系方式，无需登录</p>
+      <div class="alert alert-error" id="err" style="display:none"></div>
+      <form id="qForm">
+        <div class="form-group">
+          <label>订单号</label>
+          <input type="text" class="form-control" id="orderNo" required placeholder="如 20260605xxxxxxxx" />
+        </div>
+        <div class="form-group">
+          <label>联系方式 / 充值账号</label>
+          <input type="text" class="form-control" id="contact" required placeholder="下单时填写的微信/QQ/邮箱或账号" />
+        </div>
+        <button class="btn btn-block" type="submit" id="btn">查询订单</button>
+      </form>
+    </div>
+    <div id="result" class="auth-wrap" style="margin-top:18px"></div>
+  </main>
+
+  <script src="/js/common.js"></script>
+  <script>
+    renderNavbar();
+    document.getElementById('qForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const err = document.getElementById('err');
+      const btn = document.getElementById('btn');
+      const res = document.getElementById('result');
+      err.style.display = 'none'; res.innerHTML = '';
+      btn.disabled = true; btn.textContent = '查询中...';
+      try {
+        const { order: o } = await API.post('/api/orders/query', {
+          orderNo: document.getElementById('orderNo').value.trim(),
+          contact: document.getElementById('contact').value.trim(),
+        });
+        const deliver = (o.status === 'completed' && o.deliverContent)
+          ? `<div class="alert alert-success mt">📦 交付内容：<div style="font-family:monospace;white-space:pre-wrap;margin-top:6px">${escapeHtml(o.deliverContent)}</div></div>` : '';
+        const note = o.adminNote ? `<div class="form-hint">客服备注：${escapeHtml(o.adminNote)}</div>` : '';
+        res.innerHTML = `
+          <div class="card">
+            <div class="row" style="justify-content:space-between;align-items:center">
+              <strong>${escapeHtml(o.productName)} × ${o.quantity}</strong>
+              ${statusBadge(o.status)}
+            </div>
+            <div class="form-hint mt">订单号：${escapeHtml(o.orderNo)}</div>
+            <div class="form-hint">下单时间：${fmtDate(o.createdAt)}</div>
+            ${o.paidAt ? `<div class="form-hint">支付时间：${fmtDate(o.paidAt)}</div>` : ''}
+            ${o.completedAt ? `<div class="form-hint">完成时间：${fmtDate(o.completedAt)}</div>` : ''}
+            <div class="price-now mt" style="font-size:20px">${money(o.amount)}</div>
+            ${deliver}${note}
+          </div>`;
+      } catch (ex) {
+        err.textContent = ex.message; err.style.display = 'block';
+      } finally { btn.disabled = false; btn.textContent = '查询订单'; }
+    });
+  </script>
+</body>
+</html>

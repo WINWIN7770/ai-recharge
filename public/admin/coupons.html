@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>优惠券 - 管理后台</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <div id="adminLayout">
+    <div class="page-head">
+      <h2>优惠券管理</h2>
+      <button class="btn" onclick="openEdit()">+ 新建优惠券</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>优惠码</th><th>类型/面值</th><th>门槛</th><th>限制</th><th>使用</th><th>有效期</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody id="rows"><tr><td colspan="9" class="empty">加载中...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="editModal">
+    <div class="modal">
+      <div class="modal-header"><h3 id="editTitle">新建优惠券</h3><button class="close-x" onclick="closeEdit()">&times;</button></div>
+      <div class="modal-body">
+        <div class="alert alert-error" id="editErr" style="display:none"></div>
+        <input type="hidden" id="cid" />
+        <div class="form-group"><label>优惠码 *</label><input class="form-control" id="f_code" placeholder="如 WELCOME10" /></div>
+        <div class="row">
+          <div class="form-group" style="flex:1"><label>类型</label>
+            <select class="form-control" id="f_type" onchange="onType()">
+              <option value="fixed">固定减免（元）</option>
+              <option value="percent">百分比折扣（%）</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex:1"><label id="valLabel">减免金额（元）</label><input type="number" class="form-control" id="f_value" /></div>
+        </div>
+        <div class="row">
+          <div class="form-group" style="flex:1"><label>使用门槛（满 X 元，0 不限）</label><input type="number" class="form-control" id="f_minAmount" value="0" /></div>
+          <div class="form-group" style="flex:1"><label>最多可用次数（0 不限）</label><input type="number" class="form-control" id="f_maxUses" value="0" /></div>
+        </div>
+        <div class="form-group"><label>有效期至（选填）</label><input type="date" class="form-control" id="f_expiresAt" /></div>
+        <div class="form-group">
+          <label><input type="checkbox" id="f_firstOrderOnly" /> 仅限首单使用</label>
+          &nbsp;&nbsp;
+          <label><input type="checkbox" id="f_enabled" checked /> 启用</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeEdit()">取消</button>
+        <button class="btn" id="saveBtn" onclick="save()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/admin/admin-common.js"></script>
+  <script>
+    let coupons = [];
+    async function init() {
+      const me = await initAdmin('coupons');
+      if (!me) return;
+      await load();
+    }
+    async function load() {
+      const { coupons: list } = await API.get('/api/admin/coupons');
+      coupons = list;
+      document.getElementById('rows').innerHTML = list.length ? list.map(c => `
+        <tr>
+          <td>${c.id}</td>
+          <td><strong>${escapeHtml(c.code)}</strong></td>
+          <td>${c.type === 'percent' ? c.value + '% 折扣' : '减 ¥' + c.value}</td>
+          <td>${c.minAmount ? '满 ¥' + c.minAmount : '无门槛'}</td>
+          <td>${c.firstOrderOnly ? '<span class="badge badge-processing">仅首单</span> ' : ''}${c.maxUses ? '限' + c.maxUses + '次' : '不限次'}</td>
+          <td>${c.usedCount || 0}</td>
+          <td class="muted" style="font-size:12px">${c.expiresAt || '永久'}</td>
+          <td>${c.enabled ? '<span class="badge badge-completed">启用</span>' : '<span class="badge badge-cancelled">停用</span>'}</td>
+          <td>
+            <button class="btn btn-sm btn-outline" onclick="toggle(${c.id})">${c.enabled ? '停用' : '启用'}</button>
+            <button class="btn btn-sm btn-danger" onclick="del(${c.id})">删除</button>
+          </td>
+        </tr>`).join('') : '<tr><td colspan="9" class="empty">暂无优惠券</td></tr>';
+    }
+    function onType() {
+      document.getElementById('valLabel').textContent =
+        document.getElementById('f_type').value === 'percent' ? '折扣百分比（%）' : '减免金额（元）';
+    }
+    function openEdit(id) {
+      document.getElementById('editErr').style.display = 'none';
+      const c = id ? coupons.find(x => x.id === id) : null;
+      document.getElementById('editTitle').textContent = c ? '编辑优惠券' : '新建优惠券';
+      document.getElementById('cid').value = c ? c.id : '';
+      document.getElementById('f_code').value = c ? c.code : '';
+      document.getElementById('f_type').value = c ? c.type : 'fixed';
+      document.getElementById('f_value').value = c ? c.value : '';
+      document.getElementById('f_minAmount').value = c ? c.minAmount : 0;
+      document.getElementById('f_maxUses').value = c ? c.maxUses : 0;
+      document.getElementById('f_expiresAt').value = c && c.expiresAt ? c.expiresAt.slice(0, 10) : '';
+      document.getElementById('f_firstOrderOnly').checked = c ? !!c.firstOrderOnly : false;
+      document.getElementById('f_enabled').checked = c ? !!c.enabled : true;
+      onType();
+      document.getElementById('editModal').classList.add('show');
+    }
+    function closeEdit() { document.getElementById('editModal').classList.remove('show'); }
+    async function save() {
+      const err = document.getElementById('editErr');
+      err.style.display = 'none';
+      const id = document.getElementById('cid').value;
+      const body = {
+        code: document.getElementById('f_code').value.trim(),
+        type: document.getElementById('f_type').value,
+        value: document.getElementById('f_value').value,
+        minAmount: document.getElementById('f_minAmount').value,
+        maxUses: document.getElementById('f_maxUses').value,
+        expiresAt: document.getElementById('f_expiresAt').value,
+        firstOrderOnly: document.getElementById('f_firstOrderOnly').checked,
+        enabled: document.getElementById('f_enabled').checked,
+      };
+      if (!body.code || body.value === '') { err.textContent = '优惠码和面值必填'; err.style.display = 'block'; return; }
+      try {
+        if (id) await API.put('/api/admin/coupons/' + id, body);
+        else await API.post('/api/admin/coupons', body);
+        toast('已保存', 'ok'); closeEdit(); load();
+      } catch (e) { err.textContent = e.message; err.style.display = 'block'; }
+    }
+    async function toggle(id) {
+      const c = coupons.find(x => x.id === id);
+      try { await API.put('/api/admin/coupons/' + id, { enabled: !c.enabled }); load(); }
+      catch (e) { toast(e.message, 'err'); }
+    }
+    async function del(id) {
+      if (!confirm('确认删除该优惠券？')) return;
+      try { await API.del('/api/admin/coupons/' + id); toast('已删除', 'ok'); load(); }
+      catch (e) { toast(e.message, 'err'); }
+    }
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>订单支付 - AI 代充平台</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/css/style.css" />
+  <style>
+    .co-wrap { max-width: 760px; margin: 0 auto; padding: 28px 20px; }
+    .co-steps { display: flex; justify-content: center; gap: 0; margin-bottom: 26px; }
+    .co-step { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+    .co-step .dot { width: 24px; height: 24px; border-radius: 50%; background: #e5e7eb; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .co-step.active { color: var(--primary); font-weight: 600; }
+    .co-step.active .dot { background: var(--primary); }
+    .co-sep { width: 40px; height: 2px; background: #e5e7eb; margin: 0 12px; align-self: center; }
+    .pay-amount { font-size: 40px; font-weight: 800; color: var(--danger); text-align: center; margin: 6px 0; }
+    .sum-line { display: flex; justify-content: space-between; padding: 8px 0; font-size: 15px; border-bottom: 1px dashed var(--border); }
+    .sum-line.total { border-bottom: none; font-size: 17px; font-weight: 700; }
+    .countdown { text-align: center; color: var(--warn); font-size: 14px; margin: 10px 0 20px; }
+    .qr-row { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; margin: 18px 0; }
+    .deliver-box { background: #e8f5e9; border: 1px solid #c3e6cb; border-radius: 12px; padding: 22px; text-align: center; }
+    .deliver-box .kami { font-family: monospace; font-size: 18px; font-weight: 700; background: #fff; border: 1px dashed var(--primary); border-radius: 8px; padding: 14px; margin: 12px 0; word-break: break-all; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header class="navbar" id="navbar"></header>
+  <div class="co-wrap">
+    <div class="co-steps">
+      <div class="co-step active"><span class="dot">1</span>提交订单</div>
+      <div class="co-sep"></div>
+      <div class="co-step active" id="step2"><span class="dot">2</span>支付</div>
+      <div class="co-sep"></div>
+      <div class="co-step" id="step3"><span class="dot">3</span>完成</div>
+    </div>
+    <div id="root"><div class="empty">加载中...</div></div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script>
+    let order = null, settings = {}, countdownTimer = null, pollTimer = null;
+
+    async function init() {
+      const user = await renderNavbar();
+      if (!user) { location.href = '/login.html?next=' + encodeURIComponent(location.pathname + location.search); return; }
+      try { settings = (await API.get('/api/settings')).settings; } catch {}
+      const id = Number(new URLSearchParams(location.search).get('order'));
+      if (!id) { document.getElementById('root').innerHTML = '<div class="empty">缺少订单参数</div>'; return; }
+      await loadOrder(id);
+    }
+
+    async function loadOrder(id) {
+      try {
+        order = (await API.get('/api/orders/' + id)).order;
+        if (order.status === 'pending') renderPay();
+        else renderDone();
+      } catch (e) { document.getElementById('root').innerHTML = `<div class="empty">${e.message}</div>`; }
+    }
+
+    function renderPay() {
+      const o = order;
+      const hasAlipay = !!settings.alipayQr, hasWechat = !!settings.wechatQr;
+      const qr = (hasAlipay || hasWechat) ? `
+        <div class="qr-row">
+          ${hasAlipay ? `<div class="qr-box"><div>支付宝扫码</div><img src="${settings.alipayQr}"></div>` : ''}
+          ${hasWechat ? `<div class="qr-box"><div>微信扫码</div><img src="${settings.wechatQr}"></div>` : ''}
+        </div>` : `<div class="alert alert-info">管理员尚未配置收款码，请联系客服支付${settings.mockPayEnabled ? '，或使用下方测试支付' : ''}。</div>`;
+      const mockBtn = settings.mockPayEnabled
+        ? `<button class="btn btn-outline btn-block mt" onclick="mockPay()">🧪 模拟支付成功（测试用）</button>` : '';
+      const discountLine = o.discount > 0
+        ? `<div class="sum-line"><span>优惠券 ${escapeHtml(o.couponCode || '')}</span><span style="color:var(--ok)">- ${money(o.discount)}</span></div>` : '';
+
+      document.getElementById('root').innerHTML = `
+        <div class="card mb">
+          <div class="sum-line"><span>${escapeHtml(o.productName)} × ${o.quantity}</span><span>${money(o.subtotal != null ? o.subtotal : o.amount)}</span></div>
+          ${discountLine}
+          <div class="sum-line total"><span>应付金额</span><span></span></div>
+          <div class="pay-amount">${money(o.amount)}</div>
+          <div class="form-hint text-center">订单号：${o.orderNo}</div>
+          <div class="countdown" id="cd"></div>
+          ${qr}
+          <div class="form-group">
+            <label>上传支付凭证 <span class="muted">(选填，加快审核)</span></label>
+            <input type="file" class="form-control" id="proofFile" accept="image/*" />
+          </div>
+          <button class="btn btn-block" id="paidBtn" onclick="submitPaid()">我已完成支付</button>
+          ${mockBtn}
+          <p class="form-hint text-center mt">付款后系统将自动发货（卡密类）或由客服核实代充。</p>
+        </div>`;
+      startCountdown(new Date(o.createdAt).getTime() + 15 * 60 * 1000);
+    }
+
+    function startCountdown(deadline) {
+      clearInterval(countdownTimer);
+      const el = () => document.getElementById('cd');
+      const tick = () => {
+        const left = deadline - Date.now();
+        if (!el()) return;
+        if (left <= 0) { el().textContent = '⏰ 订单已超时，请重新下单或联系客服'; clearInterval(countdownTimer); return; }
+        const m = Math.floor(left / 60000), s = Math.floor((left % 60000) / 1000);
+        el().textContent = `请在 ${m}:${String(s).padStart(2, '0')} 内完成支付`;
+      };
+      tick(); countdownTimer = setInterval(tick, 1000);
+    }
+
+    async function submitPaid() {
+      const btn = document.getElementById('paidBtn');
+      btn.disabled = true; btn.textContent = '提交中...';
+      try {
+        const fd = new FormData();
+        fd.append('method', 'manual');
+        const f = document.getElementById('proofFile').files[0];
+        if (f) fd.append('proof', f);
+        const { order: o } = await API.post(`/api/orders/${order.id}/pay`, fd, true);
+        order = o; afterPay();
+      } catch (e) { toast(e.message, 'err'); btn.disabled = false; btn.textContent = '我已完成支付'; }
+    }
+
+    async function mockPay() {
+      try { const { order: o } = await API.post(`/api/orders/${order.id}/mock-pay`); order = o; afterPay(); }
+      catch (e) { toast(e.message, 'err'); }
+    }
+
+    function afterPay() {
+      clearInterval(countdownTimer);
+      toast('支付成功', 'ok');
+      renderDone();
+    }
+
+    function renderDone() {
+      const o = order;
+      document.getElementById('step3').classList.add('active');
+      const delivered = o.status === 'completed' && o.deliverContent;
+      const body = delivered ? `
+        <div class="deliver-box">
+          <div style="font-size:40px">🎉</div>
+          <h3>充值成功，卡密已发放</h3>
+          <div class="kami">${escapeHtml(o.deliverContent)}</div>
+          <p class="form-hint">请妥善保存。也可在「我的订单」随时查看。</p>
+        </div>`
+        : `<div class="deliver-box" style="background:#cfe2ff;border-color:#9ec5fe">
+            <div style="font-size:40px">✅</div>
+            <h3>支付信息已提交</h3>
+            <p>客服将尽快为您核实并代充处理，请留意「我的订单」状态更新。</p>
+          </div>`;
+      document.getElementById('root').innerHTML = `
+        ${body}
+        <div class="row mt" style="justify-content:center">
+          <a class="btn" href="/orders.html">查看我的订单</a>
+          <a class="btn btn-outline" href="/">返回首页继续选购</a>
+        </div>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>
