@@ -1,25 +1,15 @@
 const express = require('express');
-const path = require('path');
-const multer = require('multer');
-const { readCollection, writeCollection, readObject, writeObject, nextId, UPLOAD_DIR } = require('../db');
+const { readCollection, writeCollection, readObject, writeObject, nextId } = require('../db');
+const { memoryUpload, saveUpload } = require('../upload');
 const { requireAdmin } = require('../auth');
 
 const router = express.Router();
 router.use(requireAdmin); // 整个 admin 路由都需要管理员权限
 
 // 通用图片上传（商品图 / 收款码）
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname || '').slice(0, 10) || '.png';
-    cb(null, `img_${Date.now()}_${Math.floor(Math.random() * 1e6)}${ext}`);
-  },
-});
-const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
-
-router.post('/upload', upload.single('file'), (req, res) => {
+router.post('/upload', memoryUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: '未收到文件' });
-  res.json({ ok: true, url: `/uploads/${req.file.filename}` });
+  res.json({ ok: true, url: saveUpload(req.file, 'img') });
 });
 
 /* ---------------- 数据看板 ---------------- */
@@ -47,10 +37,10 @@ router.get('/stats', (req, res) => {
 
 /* ---------------- 商品管理 ---------------- */
 router.get('/products', (req, res) => {
-  res.json({ products: readCollection('products').sort((a, b) => b.id - a.id) });
+  res.json({ products: readCollection('products').slice().sort((a, b) => b.id - a.id) });
 });
 
-router.post('/products', (req, res) => {
+router.post('/products', async (req, res) => {
   const products = readCollection('products');
   const b = req.body || {};
   if (!b.name || b.price == null) return res.status(400).json({ error: '名称和价格必填' });
@@ -68,11 +58,11 @@ router.post('/products', (req, res) => {
     image: b.image || '',
   };
   products.push(product);
-  writeCollection('products', products);
+  await writeCollection('products', products);
   res.json({ ok: true, product });
 });
 
-router.put('/products/:id', (req, res) => {
+router.put('/products/:id', async (req, res) => {
   const id = Number(req.params.id);
   const products = readCollection('products');
   const p = products.find((x) => x.id === id);
@@ -84,22 +74,22 @@ router.put('/products/:id', (req, res) => {
     if (b[f] !== undefined) p[f] = Number(b[f]) || 0;
   }
   if (b.active !== undefined) p.active = !!b.active;
-  writeCollection('products', products);
+  await writeCollection('products', products);
   res.json({ ok: true, product: p });
 });
 
-router.delete('/products/:id', (req, res) => {
+router.delete('/products/:id', async (req, res) => {
   const id = Number(req.params.id);
   let products = readCollection('products');
   if (!products.some((x) => x.id === id)) return res.status(404).json({ error: '商品不存在' });
   products = products.filter((x) => x.id !== id);
-  writeCollection('products', products);
+  await writeCollection('products', products);
   res.json({ ok: true });
 });
 
 /* ---------------- 订单管理 ---------------- */
 router.get('/orders', (req, res) => {
-  let orders = readCollection('orders').sort((a, b) => b.id - a.id);
+  let orders = readCollection('orders').slice().sort((a, b) => b.id - a.id);
   const { status, keyword } = req.query;
   if (status) orders = orders.filter((o) => o.status === status);
   if (keyword) {
@@ -115,7 +105,7 @@ router.get('/orders', (req, res) => {
 });
 
 // 更新订单状态 / 交付内容 / 备注
-router.put('/orders/:id', (req, res) => {
+router.put('/orders/:id', async (req, res) => {
   const id = Number(req.params.id);
   const orders = readCollection('orders');
   const o = orders.find((x) => x.id === id);
@@ -133,13 +123,13 @@ router.put('/orders/:id', (req, res) => {
       if (p) {
         p.stock = Math.max(0, p.stock - o.quantity);
         p.sales = (p.sales || 0) + o.quantity;
-        writeCollection('products', products);
+        await writeCollection('products', products);
       }
     }
   }
   if (b.adminNote !== undefined) o.adminNote = b.adminNote;
   if (b.deliverContent !== undefined) o.deliverContent = b.deliverContent;
-  writeCollection('orders', orders);
+  await writeCollection('orders', orders);
   res.json({ ok: true, order: o });
 });
 
@@ -149,7 +139,7 @@ router.get('/users', (req, res) => {
   res.json({ users });
 });
 
-router.put('/users/:id', (req, res) => {
+router.put('/users/:id', async (req, res) => {
   const id = Number(req.params.id);
   const users = readCollection('users');
   const u = users.find((x) => x.id === id);
@@ -157,7 +147,7 @@ router.put('/users/:id', (req, res) => {
   const b = req.body || {};
   if (b.role && ['user', 'admin'].includes(b.role)) u.role = b.role;
   if (b.balance !== undefined) u.balance = Number(b.balance) || 0;
-  writeCollection('users', users);
+  await writeCollection('users', users);
   const { passwordHash, ...safe } = u;
   res.json({ ok: true, user: safe });
 });
@@ -167,13 +157,13 @@ router.get('/settings', (req, res) => {
   res.json({ settings: readObject('settings', {}) });
 });
 
-router.put('/settings', (req, res) => {
+router.put('/settings', async (req, res) => {
   const current = readObject('settings', {});
   const b = req.body || {};
   const merged = { ...current, ...b };
   // epay 嵌套合并
   if (b.epay) merged.epay = { ...(current.epay || {}), ...b.epay };
-  writeObject('settings', merged);
+  await writeObject('settings', merged);
   res.json({ ok: true, settings: merged });
 });
 

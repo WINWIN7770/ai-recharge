@@ -20,10 +20,8 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 
 const { run: seed } = require('./src/seed');
-const { UPLOAD_DIR } = require('./src/db');
-
-// 首次启动自动初始化种子数据
-seed();
+const db = require('./src/db');
+const { UPLOAD_DIR } = db;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,8 +30,9 @@ const HOST = process.env.HOST || '0.0.0.0';
 // 部署在 Nginx / 负载均衡 / PaaS 反向代理之后时，信任代理以正确识别 HTTPS 与客户端 IP
 app.set('trust proxy', 1);
 
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
+// 限额放宽以容纳云模式下以 base64 形式提交的收款码/商品图（上传上限 5MB → base64 约 6.7MB）
+app.use(express.json({ limit: '12mb' }));
+app.use(express.urlencoded({ extended: true, limit: '12mb' }));
 app.use(cookieParser());
 
 // 静态资源：前端页面
@@ -77,14 +76,25 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || '服务器内部错误' });
 });
 
-app.listen(PORT, HOST, () => {
-  console.log('');
-  console.log('  ====================================================');
-  console.log('   ChatGPT 代充平台已启动');
-  console.log(`   用户端:  http://localhost:${PORT}/`);
-  console.log(`   管理端:  http://localhost:${PORT}/admin/`);
-  console.log('   默认管理员: admin / admin123');
-  console.log('   默认用户:   demo / demo123');
-  console.log('  ====================================================');
-  console.log('');
-});
+// 先连接/载入数据库，再初始化种子数据，最后启动监听
+(async function start() {
+  try {
+    await db.init();
+    await seed();
+  } catch (e) {
+    console.error('启动失败:', e.message);
+    process.exit(1);
+  }
+  app.listen(PORT, HOST, () => {
+    console.log('');
+    console.log('  ====================================================');
+    console.log('   ChatGPT 代充平台已启动');
+    console.log(`   存储模式: ${db.USE_MONGO ? 'MongoDB（云端持久）' : '本地 JSON 文件'}`);
+    console.log(`   用户端:  http://localhost:${PORT}/`);
+    console.log(`   管理端:  http://localhost:${PORT}/admin/`);
+    console.log('   默认管理员: admin / admin123');
+    console.log('   默认用户:   demo / demo123');
+    console.log('  ====================================================');
+    console.log('');
+  });
+})();

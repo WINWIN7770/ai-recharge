@@ -7,7 +7,7 @@ const router = express.Router();
 const USERNAME_RE = /^[a-zA-Z0-9_一-龥]{2,20}$/;
 
 // 注册
-router.post('/register', (req, res) => {
+router.post('/register', async (req, res) => {
   const { username, email, password } = req.body || {};
   if (!username || !password) return res.status(400).json({ error: '用户名和密码不能为空' });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: '用户名为 2-20 位字母/数字/下划线/中文' });
@@ -27,7 +27,7 @@ router.post('/register', (req, res) => {
     createdAt: new Date().toISOString(),
   };
   users.push(user);
-  writeCollection('users', users);
+  await writeCollection('users', users);
 
   const token = auth.issueToken(user);
   auth.setAuthCookie(res, token);

@@ -1,0 +1,19 @@
+# Render 一键部署蓝图（免费版，无需绑卡）
+# 在 Render 控制台 New → Blueprint，指向本仓库即可。
+services:
+  - type: web
+    name: gpt-recharge
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: AUTH_SECRET
+        generateValue: true        # Render 自动生成长随机密钥
+      - key: MONGODB_URI
+        sync: false                # 部署时在控制台手动填入你的 MongoDB Atlas 连接串
